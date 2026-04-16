@@ -304,23 +304,82 @@ function initParticles() {
   }
 }
 
-// ===================== NAVEGACIÓN (FIX PRINCIPAL) =====================
-// FIX: Se verifican las secciones antes de manipularlas para evitar errores silenciosos
+// ── Fondo animado con pétalos ────────────────────────────────
+function initBgPetals() {
+  const container = document.getElementById('bg-petals');
+  if (!container) return;
+  const petals = ['🌸','🌷','🌺','💮','✿','🌸','🌸'];
+  const count = 22;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'bg-petal';
+    const size = 10 + Math.random() * 14;
+    const duration = 12 + Math.random() * 20;
+    const delay = Math.random() * 18;
+    const left = Math.random() * 100;
+    p.textContent = petals[Math.floor(Math.random() * petals.length)];
+    p.style.cssText = `
+      left: ${left}%;
+      font-size: ${size}px;
+      animation-duration: ${duration}s;
+      animation-delay: -${delay}s;
+      opacity: 0;
+    `;
+    container.appendChild(p);
+  }
+}
+
+// ── Cursor personalizado ─────────────────────────────────────
+function initCustomCursor() {
+  const cursor = document.getElementById('custom-cursor');
+  if (!cursor) return;
+  const cursorEmojis = { default:'🌸', hover:'🌺', click:'💕' };
+  let mx = -100, my = -100;
+
+  document.addEventListener('mousemove', (e) => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top  = my + 'px';
+    cursor.style.opacity = '1';
+  });
+
+  document.addEventListener('mouseleave', () => { cursor.style.opacity = '0'; });
+  document.addEventListener('mouseenter', () => { cursor.style.opacity = '1'; });
+
+  document.addEventListener('mousedown', () => {
+    cursor.textContent = cursorEmojis.click;
+    cursor.classList.add('clicking');
+  });
+  document.addEventListener('mouseup', () => {
+    cursor.textContent = cursorEmojis.default;
+    cursor.classList.remove('clicking');
+  });
+
+  // Cambiar emoji en elementos interactivos
+  const interactables = 'button, a, input, textarea, select, [role="button"]';
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest(interactables)) cursor.textContent = cursorEmojis.hover;
+    else cursor.textContent = cursorEmojis.default;
+  });
+}
+
+// ===================== NAVEGACIÓN =====================
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     const target = tab.dataset.tab;
     const section = document.getElementById('tab-' + target);
-    if (!section) { console.warn('Sección no encontrada: tab-' + target); return; }
+    if (!section) return;
 
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     tab.classList.add('active');
     section.classList.add('active');
-
-    // Scroll al tope al cambiar de sección
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    gsap.fromTo(section, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' });
+    // Morphing transition: scale + blur + opacity
+    section.classList.add('section-entering');
+    section.addEventListener('animationend', () => section.classList.remove('section-entering'), { once: true });
+    setTimeout(() => initScrollReveal(section), 80);
 
     if (target === 'tree')   renderTree();
     if (target === 'dani')   initDaniTab();
@@ -328,9 +387,62 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
   });
 });
 
+// ── Scroll reveal con IntersectionObserver ───────────────────
+function initScrollReveal(container) {
+  const cards = (container || document).querySelectorAll('.card');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.remove('reveal-hidden');
+        entry.target.classList.add('reveal-visible');
+        observer.unobserve(entry.target);
+        setTimeout(() => { entry.target.style.transitionDelay = ''; }, 900);
+      }
+    });
+  }, { threshold: 0.07 });
+  cards.forEach((card, i) => {
+    card.classList.add('reveal-hidden');
+    card.style.transitionDelay = `${i * 0.07}s`;
+    observer.observe(card);
+  });
+}
+
 document.getElementById('today-date').textContent = formatDate(new Date());
 
 // ===================== MOOD SELECTOR =====================
+const MOOD_CONFETTI = {
+  feliz:       ['⭐','✨','💛','🌟','☀️'],
+  enamorada:   ['💕','💖','🌹','💗','💓'],
+  tranquila:   ['🌿','💚','🕊️','🌱','✨'],
+  triste:      ['💙','🌧️','💧','🫧','🩵'],
+  enojada:     ['🔥','💥','✨','⚡','🌶️'],
+  ansiosa:     ['🌀','💜','🫧','🌸','💫'],
+  cansada:     ['🌙','💤','⭐','🫶','✨'],
+  esperanzada: ['🌟','🌈','💛','🌸','🕊️'],
+};
+
+function spawnMoodConfetti(btn, mood) {
+  const rect = btn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const emojis = MOOD_CONFETTI[mood] || ['✨','🌸','💕'];
+  for (let i = 0; i < 12; i++) {
+    const el = document.createElement('div');
+    el.className = 'mood-confetti';
+    el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    const angle = (Math.PI * 2 / 12) * i + (Math.random() - 0.5) * 0.5;
+    const dist  = 60 + Math.random() * 50;
+    el.style.left = cx + 'px';
+    el.style.top  = cy + 'px';
+    el.style.setProperty('--tx', `${Math.cos(angle) * dist}px`);
+    el.style.setProperty('--ty', `${Math.sin(angle) * dist}px`);
+    el.style.setProperty('--rot', `${Math.random() * 720 - 360}deg`);
+    el.style.animationDelay = `${Math.random() * 0.12}s`;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+
 document.querySelectorAll('.mood-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
@@ -339,9 +451,10 @@ document.querySelectorAll('.mood-btn').forEach(btn => {
     state.today.mood       = selectedMood;
     state.today.moodEmoji  = btn.dataset.emoji;
     state.today.date       = todayStr();
-    gsap.fromTo(btn,{scale:1},{scale:1.15,duration:0.15,yoyo:true,repeat:1,ease:'power2.out'});
+    // Bounce + confetti
+    gsap.fromTo(btn, {scale:1}, {scale:1.2, duration:0.12, yoyo:true, repeat:1, ease:'power2.out'});
+    spawnMoodConfetti(btn, selectedMood);
     showMotivationalMsg();
-    // Guardar mood inmediatamente en la nube para que Dani lo vea
     cloudSaveMain({ today: state.today });
   });
 });
@@ -735,12 +848,43 @@ function showToast(msg,pink=false){
 
 // ===================== GSAP INTRO =====================
 function introAnims(){
-  gsap.from('.nav',       {y:-60,opacity:0,duration:0.8,ease:'power3.out'});
-  gsap.from('.hero-title',{y:30,opacity:0,duration:1,delay:0.3,ease:'power3.out'});
-  gsap.from('.hero-sub',  {y:20,opacity:0,duration:0.8,delay:0.5});
-  gsap.from('.hero-date', {y:15,opacity:0,duration:0.6,delay:0.2});
-  gsap.from('.flower',    {scale:0,opacity:0,duration:0.8,stagger:0.1,delay:0.6,ease:'back.out(2)'});
-  gsap.from('.card',{scrollTrigger:{trigger:'.card',start:'top 90%'},y:40,opacity:0,duration:0.7,stagger:0.12,ease:'power2.out'});
+  gsap.from('.nav',      {y:-60,opacity:0,duration:0.8,ease:'power3.out'});
+  gsap.from('.hero-sub', {y:20,opacity:0,duration:0.8,delay:0.5});
+  gsap.from('.hero-date',{y:15,opacity:0,duration:0.6,delay:0.2});
+  gsap.from('.flower',   {scale:0,opacity:0,duration:0.8,stagger:0.1,delay:0.6,ease:'back.out(2)'});
+  // Typewriter en el hero title
+  const twEl = document.getElementById('hero-title-tw');
+  if (twEl) {
+    const lines = ['¿Cómo te sientes', 'hoy, amor? 🌸'];
+    twEl.innerHTML = '';
+    twEl.style.opacity = '1';
+    let delay = 400;
+    lines.forEach((line, li) => {
+      [...line].forEach((ch) => {
+        setTimeout(() => {
+          // Eliminar cursor anterior
+          twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
+          const span = document.createElement(li === 1 ? 'em' : 'span');
+          span.textContent = ch;
+          twEl.appendChild(span);
+          // Añadir cursor parpadeante al final
+          const cur = document.createElement('span');
+          cur.className = 'typewriter-cursor';
+          twEl.appendChild(cur);
+        }, delay);
+        delay += ch === ' ' ? 80 : 55 + Math.random() * 35;
+      });
+      // Salto de línea entre líneas
+      setTimeout(() => { twEl.appendChild(document.createElement('br')); }, delay);
+      delay += 120;
+    });
+    // Quitar cursor final al terminar
+    setTimeout(() => {
+      twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
+    }, delay + 600);
+  }
+  // Scroll reveal inicial para la sección activa
+  setTimeout(() => initScrollReveal(document.querySelector('.section.active')), 500);
 }
 
 // ============================================================
@@ -1253,26 +1397,22 @@ function renderAchievements(){
 
 // ===================== PANTALLA DE BIENVENIDA =====================
 // ===================== INIT =====================
-// Esperar a que el DOM esté completamente listo
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initIntroScreen();
-    loadState();
-    renderDrafts();
-    initParticles();
-    introAnims();
-    startRealtimeSync();
-    if(document.getElementById('tab-tree')?.classList.contains('active')) renderTree();
-  });
-} else {
-  // DOM ya está listo
+function runInit() {
   initIntroScreen();
   loadState();
   renderDrafts();
   initParticles();
+  initBgPetals();
+  initCustomCursor();
   introAnims();
   startRealtimeSync();
   if(document.getElementById('tab-tree')?.classList.contains('active')) renderTree();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', runInit);
+} else {
+  runInit();
 }
 
 // ============================================================
