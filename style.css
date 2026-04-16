@@ -560,7 +560,6 @@ body::before {
 .branch-msg-text { font-family: var(--font-display); font-style: italic; font-size: 14px; line-height: 1.6; color: var(--black-soft); margin-bottom: 4px; }
 .branch-msg-date { font-size: 11px; color: var(--charcoal); opacity: 0.5; }
 .branch-msg-mood { font-size: 12px; color: var(--pink-accent); }
-.branch-msg-moods { font-size: 12px; color: var(--pink-accent); font-style: italic; margin-bottom: 4px; padding: 4px 8px; background: rgba(255,133,161,0.08); border-radius: 6px; }
 
 /* ============================================================
    MODALS
@@ -763,16 +762,13 @@ body::before {
   position: relative;
   transition: var(--transition);
   border: 1px solid transparent;
-  flex-direction: column;
 }
 .cal-day.empty { background: transparent; }
 .cal-day.today { border-color: var(--pink-accent) !important; font-weight: 700; }
 .cal-day.has-entry { cursor: pointer; }
 .cal-day.has-entry:hover { transform: scale(1.15); box-shadow: var(--shadow-sm); z-index: 2; }
 .cal-day.no-data { background: rgba(255,240,245,0.4); color: var(--charcoal); opacity: 0.5; }
-.cal-day-mood-dot { position: relative; width: 6px; height: 6px; border-radius: 50%; }
-.cal-day-mood-dot:not(:last-child) { margin-right: 2px; }
-.cal-day span { order: -1; margin-bottom: 2px; }
+.cal-day-mood-dot { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; }
 
 /* ---- CÁPSULA DEL TIEMPO ---- */
 .capsule-date-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
@@ -1210,3 +1206,201 @@ body::before {
     transform: translateY(-100vh) translateX(var(--tx, 0px)) scale(0.7) rotate(360deg);
   }
 }
+
+/* ============================================================
+   NUEVAS FUNCIONES: REMEMBER DE EMOCIONES, MULTI-MOOD CALENDARIO
+   ============================================================ */
+
+/* --- Sección remember de emociones del día --- */
+.today-moods-remember {
+  margin: 0 16px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid rgba(255,133,161,0.25);
+  padding: 12px 16px;
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.remember-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.remember-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.remember-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.remember-label {
+  font-family: var(--font-script);
+  font-size: 13px;
+  color: var(--charcoal);
+  opacity: 0.75;
+  margin: 0 0 6px;
+}
+
+.remember-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.remember-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--charcoal);
+}
+
+.remember-add-btn {
+  flex-shrink: 0;
+  background: rgba(255,133,161,0.15);
+  border: 1.5px dashed var(--pink-accent);
+  color: var(--pink-accent);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.remember-add-btn:hover {
+  background: rgba(255,133,161,0.25);
+  transform: scale(1.05);
+}
+
+/* --- Multi-mood en el calendario --- */
+.cal-day.multi-mood {
+  position: relative;
+}
+
+.cal-day-mood-dots {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+}
+
+.cal-day-mood-dot-small {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  opacity: 0.9;
+}
+
+/* --- Modal de mezcla de emociones --- */
+.multi-mood-card {
+  max-width: 400px !important;
+  text-align: center;
+  border: 1.5px solid rgba(255,133,161,0.3) !important;
+}
+
+.multi-mood-icon {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.multi-mood-title {
+  font-family: var(--font-script);
+  font-size: 22px;
+  color: var(--pink-accent);
+  margin: 0 0 4px;
+}
+
+.multi-mood-sub {
+  font-size: 13px;
+  color: var(--charcoal);
+  opacity: 0.7;
+  margin: 0 0 16px;
+}
+
+.multi-mood-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.multi-mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 24px;
+  border: 2px solid;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--charcoal);
+}
+
+.mood-scale-mini {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.multi-mood-entries {
+  text-align: left;
+  background: rgba(255,255,255,0.5);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 8px;
+}
+
+.multi-mood-entries-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal);
+  margin: 0 0 8px;
+}
+
+.multi-mood-entry-item {
+  font-size: 13px;
+  color: var(--charcoal);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 4px;
+}
+
+.multi-mood-entry-item:hover {
+  background: rgba(255,133,161,0.1);
+}
+
+/* --- Entradas múltiples del mismo día --- */
+.day-entry-item {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.6);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.day-entry-item:hover {
+  background: rgba(255,133,161,0.1);
+}
+
