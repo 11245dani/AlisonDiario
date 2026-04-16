@@ -62,6 +62,14 @@ async function cloudSaveDailyMood(moodData) {
   catch(e) { console.error('cloudSaveDailyMood:', e); }
 }
 
+// 🆕 Generar descripción de múltiples emociones
+function getMoodsMixDescription(moods, scale) {
+  if (!moods || moods.length === 0) return 'Sin emociones registradas';
+  if (moods.length === 1) return moods[0];
+  if (moods.length === 2) return `Una mezcla de ${moods.join(' y ')} hoy`;
+  return `¡Hoy estuvo descabellado! ${moods.join(', ')} y más...`;
+}
+
 // ── saveState / loadState ───────────────────────────────────
 function saveState() {
   cloudSaveMain({
@@ -96,7 +104,7 @@ function startRealtimeSync() {
         _restoreMoodUI();
       } else {
         state.today  = { ...defaultState.today };
-        selectedMood = null;
+        selectedMoods = [];
       }
     }
     updateAIContextPill();
@@ -127,22 +135,26 @@ function startRealtimeSync() {
 }
 
 function _restoreMoodUI() {
-  if (!state.today.mood) return;
-  selectedMood = state.today.mood;
-  document.querySelectorAll('.mood-btn').forEach(btn =>
-    btn.classList.toggle('selected', btn.dataset.mood === selectedMood));
+  if (!state.today.moods || state.today.moods.length === 0) return;
+  selectedMoods = [...state.today.moods];
+  
+  document.querySelectorAll('.mood-btn').forEach(btn => {
+    const moodName = btn.dataset.mood;
+    btn.classList.toggle('selected', selectedMoods.includes(moodName));
+  });
+  
   const se = document.getElementById('mood-scale');
   const sv = document.getElementById('scale-value');
-  if (se) se.value = state.today.scale || 7;
-  if (sv) sv.textContent = state.today.scale || 7;
+  if (se) se.value = state.today.moods_scale || 7;
+  if (sv) sv.textContent = state.today.moods_scale || 7;
+  
   if (state.today.motivationalMsg) {
-    const emojis = { feliz:'💛',enamorada:'💕',tranquila:'😌',triste:'💙',enojada:'🔥',ansiosa:'🌿',cansada:'🌙',esperanzada:'🌟' };
     const el = document.getElementById('motivational-msg');
     const mt = document.getElementById('msg-text');
     const mi = document.getElementById('msg-icon');
     if (el) el.style.display = 'block';
     if (mt) mt.textContent   = state.today.motivationalMsg;
-    if (mi) mi.textContent   = emojis[state.today.mood] || '💌';
+    if (mi) mi.textContent   = '💌';
   }
 }
 
@@ -229,12 +241,12 @@ function initIntroScreen() {
 const defaultState = {
   entries: [], drafts: [],
   tree: { level:1, waterDays:0, lastWatered:null, messages:[], totalMessages:0 },
-  today: { mood:null, moodEmoji:null, scale:7, motivationalMsg:null, confirmed:false, date:null },
+  today: { moods:[], moods_scale:7, motivationalMsg:null, confirmed:false, date:null }, // 🆕 múltiples moods
   buzzon: [], chatHistory: [], capsules: [], achievements: {}, calendarMonth: null,
-  dailyMoods: [] // 🆕 moods independientes para el calendario
+  dailyMoods: [] // 🆕 moods independientes para el calendario (una entrada por día con array de emociones)
 };
 let state        = JSON.parse(JSON.stringify(defaultState));
-let selectedMood = null;
+let selectedMoods = []; // Array de moods seleccionados en la sesión actual
 
 // ===================== MENSAJES MOTIVACIONALES =====================
 const messages = {
@@ -309,59 +321,84 @@ document.getElementById('today-date').textContent = formatDate(new Date());
 // ===================== MOOD SELECTOR =====================
 document.querySelectorAll('.mood-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedMood           = btn.dataset.mood;
-    state.today.mood       = selectedMood;
-    state.today.moodEmoji  = btn.dataset.emoji;
-    state.today.date       = todayStr();
+    const mood = btn.dataset.mood;
+    
+    // Toggle: agregar o remover del array de moods
+    if (selectedMoods.includes(mood)) {
+      selectedMoods = selectedMoods.filter(m => m !== mood);
+      btn.classList.remove('selected');
+    } else {
+      selectedMoods.push(mood);
+      btn.classList.add('selected');
+    }
+    
+    // Actualizar estado
+    state.today.moods = [...selectedMoods];
+    state.today.date = todayStr();
+    
+    // Animación
     gsap.fromTo(btn,{scale:1},{scale:1.15,duration:0.15,yoyo:true,repeat:1,ease:'power2.out'});
-    showMotivationalMsg();
-    // Guardar mood inmediatamente en la nube para que Dani lo vea
-    cloudSaveMain({ today: state.today });
+    
+    if (selectedMoods.length > 0) {
+      showMotivationalMsg();
+      // Guardar moods inmediatamente en la nube
+      cloudSaveMain({ today: state.today });
+    }
   });
 });
 
 const scaleInput = document.getElementById('mood-scale');
 const scaleVal   = document.getElementById('scale-value');
 scaleInput.addEventListener('input', () => {
-  scaleVal.textContent    = scaleInput.value;
-  state.today.scale       = parseInt(scaleInput.value);
-  if (selectedMood) showMotivationalMsg();
+  scaleVal.textContent      = scaleInput.value;
+  state.today.moods_scale   = parseInt(scaleInput.value);
+  if (selectedMoods.length > 0) showMotivationalMsg();
 });
 
 function showMotivationalMsg() {
-  const msg = getMotivationalMsg(state.today.mood, state.today.scale);
+  if (selectedMoods.length === 0) return;
+  
+  // Usar la primera emoción como referencia principal
+  const primaryMood = selectedMoods[0];
+  const msg = getMotivationalMsg(primaryMood, state.today.moods_scale);
   state.today.motivationalMsg = msg;
+  
   const el = document.getElementById('motivational-msg');
   document.getElementById('msg-text').textContent = msg;
+  
   const emojis = {feliz:'💛',enamorada:'💕',tranquila:'😌',triste:'💙',enojada:'🔥',ansiosa:'🌿',cansada:'🌙',esperanzada:'🌟'};
-  document.getElementById('msg-icon').textContent = emojis[state.today.mood] || '💌';
+  document.getElementById('msg-icon').textContent = emojis[primaryMood] || '💌';
+  
   el.style.display = 'block';
   gsap.fromTo('.msg-bubble',{opacity:0,y:15,scale:0.95},{opacity:1,y:0,scale:1,duration:0.5,ease:'back.out(1.7)'});
 }
 
 // FIX: Al confirmar el mood se guarda en su propia colección para el calendario
 document.getElementById('confirm-mood-btn').addEventListener('click', async () => {
-  if (!selectedMood) { showToast('Selecciona cómo te sientes primero 🌸'); return; }
+  if (!selectedMoods || selectedMoods.length === 0) { 
+    showToast('Selecciona cómo te sientes primero 🌸'); 
+    return; 
+  }
+  
   state.today.confirmed = true;
   state.today.date      = todayStr();
+  state.today.moods     = [...selectedMoods];
 
   // Guardar en doc principal (para sincronización general)
   cloudSaveMain({ today: state.today });
 
   // 🆕 Guardar también en colección de moods diarios (para el calendario independiente)
+  const moodDesc = getMoodsMixDescription(selectedMoods, state.today.moods_scale);
   await cloudSaveDailyMood({
     date:     todayStr(),
-    mood:     state.today.mood,
-    moodEmoji: state.today.moodEmoji,
-    scale:    state.today.scale,
+    moods:    selectedMoods,
+    scale:    state.today.moods_scale,
     motivationalMsg: state.today.motivationalMsg,
     confirmedAt: new Date().toISOString()
   });
 
   checkAchievements();
-  showToast('Estado guardado 💕 ¡Gracias por compartir cómo te sientes!', true);
+  showToast('Estado guardado 💕 ' + moodDesc, true);
   gsap.to('#mood-section',{scale:0.98,opacity:0.7,duration:0.3,yoyo:true,repeat:1});
 });
 
@@ -593,7 +630,9 @@ function renderBranchMessages(){
   list.innerHTML='';
   [...state.tree.messages].reverse().forEach((msg,i)=>{
     const item=document.createElement('div'); item.className='branch-msg-item';
-    item.innerHTML=`<div class="branch-msg-leaf">🌿</div><div class="branch-msg-content"><p class="branch-msg-text">${msg.text}</p><div class="branch-msg-date">${formatDateShort(msg.date)} · <span class="branch-msg-mood">${msg.moodEmoji||'✨'} ${msg.mood||'sin estado'}</span></div></div>`;
+    const moodsText = msg.moods ? msg.moods.join(', ') : (msg.mood || 'sin estado');
+    const moodsList = msg.moods && msg.moods.length > 1 ? `<div class="branch-msg-moods">${getMoodsMixDescription(msg.moods, msg.moods_scale || 7)}</div>` : '';
+    item.innerHTML=`<div class="branch-msg-leaf">🌿</div><div class="branch-msg-content"><p class="branch-msg-text">${msg.text}</p>${moodsList}<div class="branch-msg-date">${formatDateShort(msg.date)}</div></div>`;
     list.appendChild(item);
     gsap.fromTo(item,{opacity:0,x:-15},{opacity:1,x:0,duration:0.35,delay:i*0.04,ease:'power2.out'});
   });
@@ -602,24 +641,31 @@ function renderBranchMessages(){
 // FIX: Al regar el árbol también se guarda el mood del día en la colección de moods
 document.getElementById('water-btn').addEventListener('click', async () => {
   const alreadyWatered = state.tree.lastWatered && state.tree.lastWatered.split('T')[0] === todayStr();
-  if (alreadyWatered) { showToast('¡Ya regaste tu árbol hoy! Vuelve mañana 💕'); return; }
+  if (alreadyWatered) { 
+    showToast('¡Ya regaste tu árbol hoy! Vuelve mañana 💕'); 
+    return; 
+  }
 
-  const msg = state.today.motivationalMsg || getMotivationalMsg(state.today.mood, state.today.scale);
+  const primaryMood = selectedMoods.length > 0 ? selectedMoods[0] : 'default';
+  const msg = state.today.motivationalMsg || getMotivationalMsg(primaryMood, state.today.moods_scale);
   state.tree.waterDays++;
   state.tree.lastWatered = new Date().toISOString();
-  state.tree.messages.push({text:msg,mood:state.today.mood,moodEmoji:state.today.moodEmoji,date:new Date().toISOString()});
+  state.tree.messages.push({
+    text: msg,
+    moods: selectedMoods.length > 0 ? selectedMoods : ['default'],
+    moods_scale: state.today.moods_scale,
+    date: new Date().toISOString()
+  });
   state.tree.totalMessages = state.tree.messages.length;
 
   await cloudSaveMain({ tree: state.tree });
 
-  // 🆕 Si hay mood registrado, también guardarlo en la colección de moods diarios
-  // para que el calendario se pinte aunque no se haya guardado una entrada del diario
-  if (state.today.mood) {
+  // 🆕 Si hay moods registrados, también guardarlo en la colección de moods diarios
+  if (selectedMoods.length > 0) {
     await cloudSaveDailyMood({
       date:      todayStr(),
-      mood:      state.today.mood,
-      moodEmoji: state.today.moodEmoji,
-      scale:     state.today.scale,
+      moods:     selectedMoods,
+      scale:     state.today.moods_scale,
       motivationalMsg: msg,
       wateredTree: true
     });
@@ -627,7 +673,11 @@ document.getElementById('water-btn').addEventListener('click', async () => {
 
   checkAchievements();
   animateWatering();
-  setTimeout(()=>{renderTree();showToast('¡Árbol regado! +1 día 💧 Ya llevas '+state.tree.waterDays+' días 🌸',true);},1200);
+  setTimeout(()=>{
+    renderTree();
+    const desc = getMoodsMixDescription(selectedMoods, state.today.moods_scale);
+    showToast('¡Árbol regado! +1 día 💧 Ya llevas '+state.tree.waterDays+' días 🌸\n' + desc, true);
+  }, 1200);
 });
 
 function animateWatering(){
@@ -915,16 +965,16 @@ function renderCalendar(){
     if(!entryMap[key]) entryMap[key]=entry;
   });
 
-  // 🆕 Mapa de moods diarios (independientes del diario)
+  // 🆕 Mapa de moods diarios (pueden ser múltiples emociones)
   const moodMap={};
   (state.dailyMoods||[]).forEach(m=>{
     if(m.date) moodMap[m.date]=m;
   });
 
-  // También pintar el mood de hoy si está confirmado pero no guardado aún en Firestore
+  // También pintar los moods de hoy si están confirmados pero no guardados aún en Firestore
   const todayKey = todayStr();
-  if(state.today.mood && state.today.confirmed && !moodMap[todayKey]){
-    moodMap[todayKey] = { date: todayKey, mood: state.today.mood, moodEmoji: state.today.moodEmoji, scale: state.today.scale };
+  if(state.today.moods && state.today.moods.length > 0 && state.today.confirmed && !moodMap[todayKey]){
+    moodMap[todayKey] = { date: todayKey, moods: state.today.moods, scale: state.today.moods_scale };
   }
 
   const grid=document.getElementById('calendar-grid'); grid.innerHTML='';
@@ -937,30 +987,69 @@ function renderCalendar(){
   for(let d=1;d<=daysInMonth;d++){
     const key=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const entry=entryMap[key];
-    const dailyMood=moodMap[key]; // 🆕 mood independiente
+    const dailyMood=moodMap[key]; // 🆕 mood independiente (puede tener múltiples emociones)
     const isToday=key===todayFull;
     const dayEl=document.createElement('div'); dayEl.className='cal-day';
     if(isToday) dayEl.classList.add('today');
 
-    // Prioridad: entrada del diario > mood diario independiente
-    const moodSource = entry?.mood ? entry : (dailyMood?.mood ? dailyMood : null);
+    // Obtener moods: de la entrada del diario o del registro de moods diarios
+    let moods = [];
+    if(entry && entry.mood) {
+      moods = [entry.mood];
+    } else if(dailyMood && dailyMood.moods) {
+      moods = dailyMood.moods;
+    } else if(dailyMood && dailyMood.mood) {
+      moods = [dailyMood.mood];
+    }
 
-    if(moodSource && moodSource.mood){
-      const color=MOOD_COLORS[moodSource.mood]||'#FFD6E7';
-      dayEl.style.background=color+'55'; dayEl.style.borderColor=color;
+    if(moods.length > 0){
       dayEl.classList.add('has-entry');
-      const dot=document.createElement('div'); dot.className='cal-day-mood-dot'; dot.style.background=color;
-      dayEl.appendChild(dot);
-      // Solo abrir modal si hay entrada del diario; si solo hay mood, mostrar toast
+      
+      // Si hay múltiples emociones, crear un degradado con múltiples colores
+      if(moods.length > 1) {
+        const colors = moods.map(m => MOOD_COLORS[m] || '#FFD6E7');
+        const gradient = `linear-gradient(135deg, ${colors.join(', ')})`;
+        dayEl.style.background = gradient;
+        dayEl.style.backgroundClip = 'padding-box';
+        dayEl.style.opacity = '0.7';
+        dayEl.style.borderColor = colors[0];
+        
+        // Crear puntos para cada emoción
+        const dotContainer = document.createElement('div');
+        dotContainer.style.display = 'flex';
+        dotContainer.style.gap = '3px';
+        dotContainer.style.justifyContent = 'center';
+        dotContainer.style.marginTop = '4px';
+        moods.forEach(m => {
+          const dot = document.createElement('div');
+          dot.className = 'cal-day-mood-dot';
+          dot.style.background = MOOD_COLORS[m] || '#FFD6E7';
+          dotContainer.appendChild(dot);
+        });
+        dayEl.appendChild(dotContainer);
+      } else {
+        // Una sola emoción
+        const color = MOOD_COLORS[moods[0]] || '#FFD6E7';
+        dayEl.style.background = color + '55';
+        dayEl.style.borderColor = color;
+        const dot = document.createElement('div');
+        dot.className = 'cal-day-mood-dot';
+        dot.style.background = color;
+        dayEl.appendChild(dot);
+      }
+      
+      // Click handler
       if(entry){
         dayEl.addEventListener('click',()=>openEntryModal(entry));
-        dayEl.title=`${moodSource.mood} — "${entry.title}"`;
+        dayEl.title=`${moods.join(', ')} — "${entry.title}"`;
       } else {
-        const moodEmoji = moodSource.moodEmoji || '✨';
-        dayEl.title=`${moodSource.mood} · ${moodSource.scale||'?'}/10`;
-        dayEl.addEventListener('click',()=>showToast(`${moodEmoji} ${moodSource.mood} · ${moodSource.scale||'?'}/10`, true));
+        // Solo mood registrado, sin entrada de diario
+        const desc = getMoodsMixDescription(moods, dailyMood?.scale || 7);
+        const scale = dailyMood?.scale || '?';
+        dayEl.title = desc + ` · ${scale}/10`;
+        dayEl.addEventListener('click', () => showToast(desc + ` · ${scale}/10`, true));
       }
-    } else if(key<=todayFull){
+    } else if(key <= todayFull){
       dayEl.classList.add('no-data');
     } else {
       dayEl.style.opacity='0.3';
@@ -1038,16 +1127,17 @@ const ACHIEVEMENTS_DEF=[
   {id:'entries_5',    icon:'📖',name:'5 entradas escritas',  desc:'Has llenado 5 páginas de tu jardín interior',        check:s=>s.entries.length>=5},
   {id:'entries_20',   icon:'📚',name:'Escritora del alma',   desc:'20 entradas en tu diario. ¡Eres increíble!',         check:s=>s.entries.length>=20},
   {id:'first_mood',   icon:'😊',name:'Primer estado',        desc:'Registraste cómo te sientes por primera vez',        check:s=>s.today.confirmed||(s.dailyMoods&&s.dailyMoods.length>=1)},
-  {id:'in_love',      icon:'💕',name:'Primera vez enamorada',desc:'Sentiste el amor y lo compartiste aquí',             check:s=>s.entries.some(e=>e.mood==='enamorada')||(s.dailyMoods&&s.dailyMoods.some(m=>m.mood==='enamorada'))},
-  {id:'hard_day',     icon:'💙',name:'Superaste un día difícil',desc:'Registraste que estabas triste o ansiosa',        check:s=>s.entries.some(e=>e.mood==='triste'||e.mood==='ansiosa')||(s.dailyMoods&&s.dailyMoods.some(m=>m.mood==='triste'||m.mood==='ansiosa'))},
+  {id:'in_love',      icon:'💕',name:'Primera vez enamorada',desc:'Sentiste el amor y lo compartiste aquí',             check:s=>s.entries.some(e=>e.mood==='enamorada')||(s.dailyMoods&&(s.dailyMoods.some(m=>m.moods&&m.moods.includes('enamorada'))||s.dailyMoods.some(m=>m.mood==='enamorada')))},
+  {id:'hard_day',     icon:'💙',name:'Superaste un día difícil',desc:'Registraste que estabas triste o ansiosa',        check:s=>s.entries.some(e=>e.mood==='triste'||e.mood==='ansiosa')||(s.dailyMoods&&(s.dailyMoods.some(m=>m.moods&&(m.moods.includes('triste')||m.moods.includes('ansiosa')))||s.dailyMoods.some(m=>(m.mood==='triste'||m.mood==='ansiosa'))))},
   {id:'tree_7',       icon:'🌱',name:'7 días seguidos 🌸',   desc:'Regaste tu árbol 7 veces. ¡Constancia hermosa!',     check:s=>s.tree.waterDays>=7},
   {id:'tree_30',      icon:'🌳',name:'Un mes de jardín',     desc:'Llevas 30 días cuidando tu jardín interior',         check:s=>s.tree.waterDays>=30},
   {id:'first_capsule',icon:'⏳',name:'Carta al futuro',      desc:'Creaste tu primera cápsula del tiempo',              check:s=>(s.capsules||[]).length>=1},
   {id:'capsule_opened',icon:'📬',name:'Viaje en el tiempo',  desc:'Abriste una cápsula del tiempo',                    check:s=>(s.capsules||[]).some(c=>c.opened)},
   {id:'first_drawing',icon:'🎨',name:'Artista del corazón',  desc:'Guardaste tu primer dibujo',                         check:s=>s.drafts.length>=1},
   {id:'first_dani',   icon:'💌',name:'Mensaje de amor',      desc:'Recibiste tu primer mensaje de Dani',                check:s=>(s.buzzon||[]).length>=1},
-  {id:'hopeful',      icon:'🌟',name:'Llena de esperanza',   desc:'Registraste un día de esperanza',                    check:s=>s.entries.some(e=>e.mood==='esperanzada')||(s.dailyMoods&&s.dailyMoods.some(m=>m.mood==='esperanzada'))},
+  {id:'hopeful',      icon:'🌟',name:'Llena de esperanza',   desc:'Registraste un día de esperanza',                    check:s=>s.entries.some(e=>e.mood==='esperanzada')||(s.dailyMoods&&(s.dailyMoods.some(m=>m.moods&&m.moods.includes('esperanzada'))||s.dailyMoods.some(m=>m.mood==='esperanzada')))},
   {id:'scale_10',     icon:'✨',name:'Día 10 de 10',         desc:'Tuviste un día perfecto y lo celebraste aquí',       check:s=>s.entries.some(e=>e.scale===10)||(s.dailyMoods&&s.dailyMoods.some(m=>m.scale===10))},
+  {id:'mixed_moods',  icon:'🎭',name:'Día descabellado',     desc:'Registraste múltiples emociones en un mismo día',    check:s=>(s.dailyMoods||[]).some(m=>m.moods&&m.moods.length>1)},
 ];
 
 function checkAchievements(){
