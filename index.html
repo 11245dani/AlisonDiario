@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mi Jardín de Alison 🌸</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== INTRO SCREEN ===== -->
+<div class="intro-overlay" id="intro-overlay">
+  <div class="intro-particles" id="intro-particles"></div>
+  <div class="intro-content">
+    <div class="intro-logo" id="intro-logo">🌸</div>
+    <div class="intro-message-wrapper" id="intro-message-wrapper">
+      <p class="intro-eyebrow">Tu jardín interior</p>
+      <h1 class="intro-title">
+        Bienvenida,<br><em>Alison</em>
+      </h1>
+      <p class="intro-subtitle">Tu lugar seguro te estaba esperando</p>
+    </div>
+    <div class="intro-flowers-row" id="intro-flowers-row">
+      <span class="intro-flower">🌸</span>
+      <span class="intro-flower">🌷</span>
+      <span class="intro-flower">🌺</span>
+      <span class="intro-flower">💮</span>
+      <span class="intro-flower">🌸</span>
+    </div>
+    <button class="intro-skip" id="intro-skip">Continuar al jardín ✨</button>
+  </div>
+</div>
+
+<div class="particles" id="particles"></div>
+
+<!-- NAVEGACIÓN -->
+<nav class="nav" id="nav">
+  <div class="nav-logo">
+    <span class="logo-icon">🌸</span>
+    <span class="logo-text">Mi Jardín de Alison</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-tab="diary">
+      <span class="tab-icon">📓</span><span>Diario</span>
+    </button>
+    <button class="nav-tab" data-tab="canvas">
+      <span class="tab-icon">🎨</span><span>Dibujos</span>
+    </button>
+    <button class="nav-tab" data-tab="tree">
+      <span class="tab-icon">🌳</span><span>Mi Árbol</span>
+    </button>
+    <button class="nav-tab" data-tab="dani">
+      <span class="tab-icon">💌</span><span>Dani & IA</span>
+    </button>
+    <button class="nav-tab" data-tab="extras">
+      <span class="tab-icon">✨</span><span>Extras</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ===== SECCIÓN DIARIO ===== -->
+<section class="section active" id="tab-diary">
+
+  <div class="diary-hero">
+    <div class="hero-content">
+      <p class="hero-date" id="today-date"></p>
+      <h1 class="hero-title">¿Cómo te sientes<br><em>hoy, amor?</em></h1>
+      <p class="hero-sub">Este es tu espacio seguro. Escribe, siente, crece 🌸</p>
+    </div>
+    <div class="hero-flowers">
+      <div class="flower f1">🌸</div>
+      <div class="flower f2">🌺</div>
+      <div class="flower f3">🌷</div>
+      <div class="flower f4">💮</div>
+    </div>
+  </div>
+
+  <!-- MOOD SELECTOR -->
+  <div class="card mood-card" id="mood-section">
+    <h2 class="card-title">¿Cómo te sientes hoy?</h2>
+    <p class="card-sub">Es opcional, pero me ayuda a enviarte el mensaje perfecto 💕</p>
+
+    <div class="mood-emojis">
+      <button class="mood-btn" data-mood="feliz" data-emoji="😊"><span class="mood-emoji">😊</span><span class="mood-label">Feliz</span></button>
+      <button class="mood-btn" data-mood="enamorada" data-emoji="🥰"><span class="mood-emoji">🥰</span><span class="mood-label">Enamorada</span></button>
+      <button class="mood-btn" data-mood="tranquila" data-emoji="😌"><span class="mood-emoji">😌</span><span class="mood-label">Tranquila</span></button>
+      <button class="mood-btn" data-mood="triste" data-emoji="😢"><span class="mood-emoji">😢</span><span class="mood-label">Triste</span></button>
+      <button class="mood-btn" data-mood="enojada" data-emoji="😤"><span class="mood-emoji">😤</span><span class="mood-label">Enojada</span></button>
+      <button class="mood-btn" data-mood="ansiosa" data-emoji="😰"><span class="mood-emoji">😰</span><span class="mood-label">Ansiosa</span></button>
+      <button class="mood-btn" data-mood="cansada" data-emoji="😴"><span class="mood-emoji">😴</span><span class="mood-label">Cansada</span></button>
+      <button class="mood-btn" data-mood="esperanzada" data-emoji="🌟"><span class="mood-emoji">🌟</span><span class="mood-label">Esperanzada</span></button>
+    </div>
+
+    <div class="scale-section">
+      <p class="scale-label">¿Y en una escala del 1 al 10?</p>
+      <div class="scale-track">
+        <input type="range" min="1" max="10" value="7" class="scale-input" id="mood-scale">
+        <div class="scale-value" id="scale-value">7</div>
+      </div>
+      <div class="scale-ends">
+        <span>💔 Muy mal</span>
+        <span>✨ Genial</span>
+      </div>
+    </div>
+
+    <div class="motivational-msg" id="motivational-msg" style="display:none">
+      <div class="msg-bubble">
+        <span class="msg-icon" id="msg-icon">💌</span>
+        <p class="msg-text" id="msg-text"></p>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="confirm-mood-btn">Guardar mi estado de hoy ✨</button>
+  </div>
+
+  <!-- EDITOR DE DIARIO -->
+  <div class="card diary-editor" id="diary-editor">
+    <h2 class="card-title">Mi diario 📝</h2>
+    <p class="card-sub">Escribe lo que sientes. Este espacio es solo tuyo 🌸</p>
+    <input type="text" class="entry-title-input" id="entry-title" placeholder="Dale un título a este momento...">
+    <textarea class="diary-textarea" id="diary-text" placeholder="Hoy quiero contarte que...
+
+Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este jardín guarda cada palabra que escribas con amor... 🌸"></textarea>
+    <div class="entry-footer">
+      <div class="char-count"><span id="char-count">0</span> palabras escritas 💕</div>
+      <div class="entry-actions">
+        <button class="btn-secondary" id="save-entry-btn">💾 Guardar en mi diario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ENTRADAS GUARDADAS -->
+  <div class="card entries-card" id="entries-card">
+    <div class="entries-header">
+      <h2 class="card-title">Mis memorias 🌸</h2>
+      <span class="entries-count" id="entries-count">0 entradas</span>
+    </div>
+    <div class="entries-list" id="entries-list">
+      <div class="empty-state" id="empty-diary">
+        <div class="empty-icon">📖</div>
+        <p>Aquí aparecerán tus entradas del diario</p>
+        <p class="empty-sub">Cada palabra que escribas quedará guardada aquí con amor 💕</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ===== SECCIÓN CANVAS ===== -->
+<section class="section" id="tab-canvas">
+  <div class="canvas-hero">
+    <h1 class="hero-title">Tus Dibujos <em>Mágicos</em> 🎨</h1>
+    <p class="hero-sub">Expresa con colores lo que las palabras no pueden decir</p>
+  </div>
+  <div class="card canvas-card">
+    <div class="canvas-toolbar">
+      <div class="tool-group">
+        <button class="tool-btn active" id="tool-pen" title="Pincel">🖊️</button>
+        <button class="tool-btn" id="tool-eraser" title="Borrador">🧹</button>
+        <button class="tool-btn" id="tool-fill" title="Rellenar">🪣</button>
+      </div>
+      <div class="tool-group">
+        <label class="size-label">Tamaño:</label>
+        <input type="range" min="1" max="40" value="5" id="brush-size" class="mini-range">
+        <span id="brush-size-val">5px</span>
+      </div>
+      <div class="tool-group color-group">
+        <label class="size-label">Color:</label>
+        <div class="color-palette">
+          <button class="color-swatch active" style="background:#FFB3C1" data-color="#FFB3C1"></button>
+          <button class="color-swatch" style="background:#FF85A1" data-color="#FF85A1"></button>
+          <button class="color-swatch" style="background:#FFC8DD" data-color="#FFC8DD"></button>
+          <button class="color-swatch" style="background:#FFAFCC" data-color="#FFAFCC"></button>
+          <button class="color-swatch" style="background:#BDE0FE" data-color="#BDE0FE"></button>
+          <button class="color-swatch" style="background:#CDB4DB" data-color="#CDB4DB"></button>
+          <button class="color-swatch" style="background:#A2D2FF" data-color="#A2D2FF"></button>
+          <button class="color-swatch" style="background:#E8C4DE" data-color="#E8C4DE"></button>
+          <button class="color-swatch" style="background:#1a0a0f" data-color="#1a0a0f"></button>
+          <button class="color-swatch" style="background:#fff0f5" data-color="#fff0f5"></button>
+        </div>
+        <input type="color" id="custom-color" value="#FFB3C1" class="color-picker-input" title="Color personalizado">
+      </div>
+    </div>
+    <div class="canvas-wrapper">
+      <canvas id="drawing-canvas" width="900" height="500"></canvas>
+    </div>
+    <div class="canvas-actions">
+      <button class="btn-secondary" id="canvas-clear">🗑️ Limpiar</button>
+      <button class="btn-secondary" id="canvas-save-draft">💾 Guardar borrador</button>
+      <button class="btn-primary" id="canvas-download">⬇️ Descargar</button>
+      <button class="btn-primary" id="canvas-share">📤 Compartir</button>
+    </div>
+    <div class="drafts-section">
+      <h3 class="drafts-title">Mis borradores guardados 🖼️</h3>
+      <div class="drafts-grid" id="drafts-grid">
+        <div class="empty-state" id="empty-drafts">
+          <div class="empty-icon">🎨</div><p>Guarda tus dibujos aquí</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECCIÓN ÁRBOL ===== -->
+<section class="section" id="tab-tree">
+  <div class="tree-hero">
+    <h1 class="hero-title">Tu Árbol <em>del Alma</em> 🌳</h1>
+    <p class="hero-sub">Cada día que lo riegas, crece un poco más contigo</p>
+  </div>
+  <div class="tree-container">
+    <div class="tree-stats">
+      <div class="stat-card">
+        <div class="stat-icon">💧</div>
+        <div class="stat-number" id="water-days">0</div>
+        <div class="stat-label">Días regado</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🌸</div>
+        <div class="stat-number" id="tree-level-display">1</div>
+        <div class="stat-label">Nivel del árbol</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✨</div>
+        <div class="stat-number" id="messages-count">0</div>
+        <div class="stat-label">Mensajes de amor</div>
+      </div>
+    </div>
+    <div class="tree-scene">
+      <div class="tree-status-badge" id="tree-status-badge">🌱 Brote tierno</div>
+      <svg id="tree-svg" viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="300" cy="520" rx="160" ry="22" fill="#e8c4de" opacity="0.4"/>
+        <g id="trunk-group">
+          <path id="trunk" d="M280,510 Q275,450 270,390 Q265,330 278,280 Q285,240 300,210" stroke="#8B5E6E" stroke-width="22" fill="none" stroke-linecap="round"/>
+          <path d="M320,510 Q325,450 330,390 Q335,330 322,280 Q315,240 300,210" stroke="#8B5E6E" stroke-width="18" fill="none" stroke-linecap="round" opacity="0.6"/>
+        </g>
+        <g id="branches-group" opacity="0">
+          <path class="branch branch-1" d="M285,380 Q240,340 200,320" stroke="#9B6E7E" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path class="branch branch-2" d="M315,360 Q360,320 400,305" stroke="#9B6E7E" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path class="branch branch-3" d="M288,320 Q250,280 220,260" stroke="#9B6E7E" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path class="branch branch-4" d="M312,305 Q355,265 385,245" stroke="#9B6E7E" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path class="branch branch-5" d="M295,265 Q265,235 245,215" stroke="#9B6E7E" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <path class="branch branch-6" d="M305,255 Q335,225 355,205" stroke="#9B6E7E" stroke-width="6" fill="none" stroke-linecap="round"/>
+        </g>
+        <g id="flowers-group"></g>
+        <g id="canopy-group">
+          <circle id="canopy-main" cx="300" cy="195" r="0" fill="#FFB3C1" opacity="0.85"/>
+          <circle id="canopy-l" cx="260" cy="215" r="0" fill="#FFC8DD" opacity="0.8"/>
+          <circle id="canopy-r" cx="340" cy="215" r="0" fill="#FFAFCC" opacity="0.8"/>
+          <circle id="canopy-t" cx="300" cy="170" r="0" fill="#FF85A1" opacity="0.75"/>
+        </g>
+        <text x="200" y="525" font-size="18" opacity="0.7">🌸</text>
+        <text x="360" y="525" font-size="16" opacity="0.6">🌺</text>
+        <text x="150" y="510" font-size="14" opacity="0.5">🌷</text>
+        <text x="420" y="510" font-size="14" opacity="0.5">💮</text>
+      </svg>
+      <div class="water-btn-container">
+        <button class="water-btn" id="water-btn">
+          <span class="water-icon">💧</span>
+          <span class="water-text">Regar mi árbol</span>
+        </button>
+        <p class="water-note" id="water-note">¡Riégame cada día para que crezcamos juntas! 🌸</p>
+      </div>
+    </div>
+    <div class="branch-messages-card card">
+      <h3 class="card-title">Mensajes en mis ramas 🌿</h3>
+      <p class="card-sub">Cada mensaje motivacional que recibiste vive aquí para siempre</p>
+      <div class="branch-messages-list" id="branch-messages-list">
+        <div class="empty-state" id="empty-branches">
+          <div class="empty-icon">🌱</div>
+          <p>Los mensajes aparecerán cuando empieces a regar tu árbol</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SECCIÓN DANI & IA ===== -->
+<section class="section" id="tab-dani">
+  <div class="dani-hero">
+    <h1 class="hero-title">Dani <em>& Alison</em> 💌</h1>
+    <p class="hero-sub">Tu espacio especial, Alison — mensajes de Dani y tu compañera de IA 🌸</p>
+  </div>
+
+  <div class="dani-inner-tabs">
+    <button class="dani-tab active" data-dtab="ai"><span>🤖</span> Tu IA personal</button>
+    <button class="dani-tab" data-dtab="buzzon">
+      <span>💌</span> Buzón de Dani
+      <span class="unread-badge" id="unread-badge" style="display:none">0</span>
+    </button>
+    <button class="dani-tab" data-dtab="write-dani"><span>✍️</span> Escribir a Dani</button>
+  </div>
+
+  <!-- IA PERSONAL -->
+  <div class="dani-panel active" id="dpanel-ai">
+    <div class="card ai-card">
+      <div class="ai-header">
+        <div class="ai-avatar">🌸</div>
+        <div class="ai-info">
+          <h3 class="ai-name">Jardincita IA</h3>
+          <p class="ai-desc">Tu compañera que te conoce de verdad — sabe cómo te has sentido, lo que has vivido y lo que necesitas escuchar</p>
+        </div>
+        <div class="ai-status"><span class="ai-dot"></span> en línea</div>
+      </div>
+      <div class="ai-context-pill" id="ai-context-pill">
+        <span id="ai-context-text">Cargando tu contexto...</span>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-welcome">
+          <div class="welcome-bubble">
+            <p>Hola Alison 🌸 Soy tu Jardincita. Estoy aquí para escucharte, acompañarte y enviarte todo el amor que mereces. ¿Cómo te sientes hoy?</p>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <textarea class="chat-input" id="chat-input" placeholder="Cuéntame lo que sientes..." rows="2"></textarea>
+        <button class="chat-send-btn" id="chat-send-btn"><span id="send-icon">💌</span></button>
+      </div>
+      <div class="ai-quick-prompts">
+        <p class="quick-label">Sugerencias rápidas:</p>
+        <div class="quick-btns">
+          <button class="quick-btn" data-prompt="Necesito un abrazo de palabras hoy 🤗">🤗 Necesito un abrazo</button>
+          <button class="quick-btn" data-prompt="Cuéntame algo bonito para animarme ✨">✨ Algo bonito</button>
+          <button class="quick-btn" data-prompt="Ayúdame a reflexionar sobre cómo me he sentido estos días 🌙">🌙 Reflexionar</button>
+          <button class="quick-btn" data-prompt="Dame un mensaje de amor especial de Dani 💕">💕 Mensaje de Dani</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUZÓN DE DANI -->
+  <div class="dani-panel" id="dpanel-buzzon">
+    <div class="card">
+      <h2 class="card-title">Buzón de Dani 💌</h2>
+      <p class="card-sub">Los mensajes que Dani dejó especialmente para ti, Alison</p>
+      <div class="buzzon-list" id="buzzon-list">
+        <div class="empty-state" id="empty-buzzon">
+          <div class="empty-icon">📭</div>
+          <p>Aún no hay mensajes de Dani</p>
+          <p class="empty-sub">Pídele a Dani que te deje un mensaje especial 💕</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESCRIBIR A DANI -->
+  <div class="dani-panel" id="dpanel-write-dani">
+
+    <!-- PIN LOCK SCREEN -->
+    <div class="pin-lock-screen" id="pin-lock-screen">
+      <div class="card pin-card">
+        <div class="pin-header">
+          <div class="pin-avatar">💌</div>
+          <h2 class="card-title">Área privada de Dani</h2>
+          <p class="card-sub">Solo Dani puede dejarle mensajes a Alison aquí 🌸<br>Ingresa tu PIN secreto</p>
+        </div>
+        <div class="pin-dots" id="pin-dots">
+          <div class="pin-dot" id="dot-0"></div>
+          <div class="pin-dot" id="dot-1"></div>
+          <div class="pin-dot" id="dot-2"></div>
+          <div class="pin-dot" id="dot-3"></div>
+        </div>
+        <div class="pin-error" id="pin-error" style="display:none">
+          <span class="pin-error-icon">🌸</span>
+          <p>Recuerda que solo Dani puede enviarte mensajes, Alison 💕</p>
+        </div>
+        <div class="pin-keypad" id="pin-keypad">
+          <button class="pin-key" data-val="1">1</button>
+          <button class="pin-key" data-val="2">2</button>
+          <button class="pin-key" data-val="3">3</button>
+          <button class="pin-key" data-val="4">4</button>
+          <button class="pin-key" data-val="5">5</button>
+          <button class="pin-key" data-val="6">6</button>
+          <button class="pin-key" data-val="7">7</button>
+          <button class="pin-key" data-val="8">8</button>
+          <button class="pin-key" data-val="9">9</button>
+          <button class="pin-key pin-key-clear" data-val="clear">🗑️</button>
+          <button class="pin-key" data-val="0">0</button>
+          <button class="pin-key pin-key-del" data-val="del">⌫</button>
+        </div>
+        <p class="pin-hint">¿Dani? Ingresa el PIN que acordaron 💌</p>
+      </div>
+    </div>
+
+    <!-- FORMULARIO (oculto hasta pasar el PIN) -->
+    <div class="dani-write-form" id="dani-write-form" style="display:none">
+    <div class="card dani-write-card">
+      <div class="dani-mode-banner">
+        <span>✍️</span>
+        <div><strong>Modo Dani</strong><p>Escribe un mensaje especial para Alison</p></div>
+      </div>
+      <div class="dani-form">
+        <div class="form-group">
+          <label class="form-label">Tipo de mensaje</label>
+          <div class="msg-type-selector">
+            <button class="msg-type-btn active" data-type="carta">💌 Carta de amor</button>
+            <button class="msg-type-btn" data-type="sorpresa">🎁 Sorpresa</button>
+            <button class="msg-type-btn" data-type="recordatorio">⭐ Recordatorio</button>
+            <button class="msg-type-btn" data-type="poema">🌹 Poema</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Título del mensaje</label>
+          <input type="text" class="dani-input" id="dani-msg-title" placeholder="Ej: Para cuando lo necesites...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tu mensaje para Alison 💕</label>
+          <textarea class="dani-textarea" id="dani-msg-body" placeholder="Escribe desde el corazón..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">¿Programar para una fecha especial? (opcional)</label>
+          <input type="date" class="dani-input" id="dani-msg-date" min="">
+          <p class="form-hint">Si eliges una fecha, Alison solo podrá abrir el mensaje ese día 🔒</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">¿Con qué emoji la acompañas?</label>
+          <div class="emoji-picker-row">
+            <button class="emoji-pick active" data-emoji="💕">💕</button>
+            <button class="emoji-pick" data-emoji="🌸">🌸</button>
+            <button class="emoji-pick" data-emoji="🥰">🥰</button>
+            <button class="emoji-pick" data-emoji="🌹">🌹</button>
+            <button class="emoji-pick" data-emoji="✨">✨</button>
+            <button class="emoji-pick" data-emoji="💫">💫</button>
+            <button class="emoji-pick" data-emoji="🎁">🎁</button>
+            <button class="emoji-pick" data-emoji="🌙">🌙</button>
+          </div>
+        </div>
+        <button class="btn-primary btn-dani-send" id="dani-send-btn">💌 Enviar al buzón de Alison</button>
+      </div>
+    </div>
+    </div><!-- /dani-write-form -->
+  </div>
+</section>
+
+<!-- ===== SECCIÓN EXTRAS ===== -->
+<section class="section" id="tab-extras">
+  <div class="extras-hero">
+    <h1 class="hero-title">Tu Rincón <em>Especial</em> ✨</h1>
+    <p class="hero-sub">Recuerdos, cápsulas del tiempo y logros de tu camino 🌸</p>
+  </div>
+
+  <div class="extras-inner-tabs">
+    <button class="extras-tab active" data-etab="calendar"><span>📅</span> Calendario</button>
+    <button class="extras-tab" data-etab="capsule"><span>⏳</span> Cápsula del tiempo</button>
+    <button class="extras-tab" data-etab="achievements"><span>🏆</span> Logros</button>
+  </div>
+
+  <!-- CALENDARIO DE MEMORIAS -->
+  <div class="extras-panel active" id="epanel-calendar">
+    <div class="card">
+      <h2 class="card-title">Calendario de memorias 📅</h2>
+      <p class="card-sub">Cada día coloreado según cómo te sentiste. Tu historia en un vistazo 🌈</p>
+      <div class="calendar-nav">
+        <button class="cal-nav-btn" id="cal-prev">‹</button>
+        <h3 class="cal-month-title" id="cal-month-title"></h3>
+        <button class="cal-nav-btn" id="cal-next">›</button>
+      </div>
+      <div class="calendar-mood-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#FFD700"></span>Feliz</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#FF85A1"></span>Enamorada</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#A8E6CF"></span>Tranquila</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#BDE0FE"></span>Triste</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#FFB347"></span>Enojada</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#CDB4DB"></span>Ansiosa</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#C8E6C9"></span>Cansada</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#FFF176"></span>Esperanzada</span>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </div>
+  </div>
+
+  <!-- CÁPSULA DEL TIEMPO -->
+  <div class="extras-panel" id="epanel-capsule">
+    <div class="card">
+      <h2 class="card-title">Cápsula del tiempo ⏳</h2>
+      <p class="card-sub">Escribe una carta para tu yo del futuro. La sellaremos hasta el día elegido 🔒</p>
+
+      <div class="capsule-form" id="capsule-form">
+        <div class="form-group">
+          <label class="form-label">¿Para cuándo sellamos esta cápsula?</label>
+          <div class="capsule-date-options">
+            <button class="capsule-time-btn active" data-months="3">3 meses</button>
+            <button class="capsule-time-btn" data-months="6">6 meses</button>
+            <button class="capsule-time-btn" data-months="12">1 año</button>
+            <button class="capsule-time-btn" data-months="0">Fecha personalizada</button>
+          </div>
+          <input type="date" class="dani-input" id="capsule-custom-date" style="display:none; margin-top:10px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Querida Alison del futuro... 💕</label>
+          <textarea class="dani-textarea" id="capsule-text" placeholder="Escríbele a quien serás. Cuéntale cómo te sientes hoy, qué esperas de la vida, qué te da miedo, qué te hace feliz...
+
+Este mensaje es tuyo. Solo tú podrás leerlo cuando llegue el momento ✨" style="min-height:200px"></textarea>
+        </div>
+        <button class="btn-primary" id="capsule-seal-btn">🔒 Sellar mi cápsula</button>
+      </div>
+
+      <div class="capsules-list" id="capsules-list"></div>
+    </div>
+  </div>
+
+  <!-- LOGROS Y MEDALLAS -->
+  <div class="extras-panel" id="epanel-achievements">
+    <div class="card">
+      <h2 class="card-title">Mis logros 🏆</h2>
+      <p class="card-sub">Cada paso que das merece ser celebrado. ¡Eres increíble! 🌸</p>
+      <div class="achievements-summary" id="achievements-summary"></div>
+      <div class="achievements-grid" id="achievements-grid"></div>
+    </div>
+  </div>
+
+</section>
+
+<!-- MODAL: Ver entrada del diario -->
+<div class="modal-overlay" id="entry-modal" style="display:none">
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close">✕</button>
+    <div class="modal-header">
+      <span class="modal-mood-emoji" id="modal-mood-emoji"></span>
+      <div>
+        <h3 class="modal-title" id="modal-title"></h3>
+        <p class="modal-date" id="modal-date"></p>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-motivational" id="modal-motivational"></div>
+    <button class="btn-danger" id="modal-delete">🗑️ Eliminar esta entrada</button>
+  </div>
+</div>
+
+<!-- MODAL: Compartir dibujo -->
+<div class="modal-overlay" id="share-modal" style="display:none">
+  <div class="modal-card share-modal-card">
+    <button class="modal-close" id="share-modal-close">✕</button>
+    <h3 class="modal-title">Compartir tu dibujo 💌</h3>
+    <div class="share-preview">
+      <img id="share-preview-img" src="" alt="Tu dibujo" style="max-width:100%; border-radius:12px; margin:16px 0">
+    </div>
+    <p class="card-sub">¿A quién quieres enviarle este dibujo?</p>
+    <div class="share-options">
+      <a class="share-btn whatsapp" id="share-whatsapp" href="#" target="_blank"><span>📱</span> WhatsApp</a>
+      <button class="share-btn copy" id="share-copy"><span>📋</span> Copiar imagen</button>
+      <button class="share-btn download" id="share-download-btn"><span>⬇️</span> Descargar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Leer mensaje de Dani -->
+<div class="modal-overlay" id="buzzon-modal" style="display:none">
+  <div class="modal-card buzzon-modal-card">
+    <button class="modal-close" id="buzzon-modal-close">✕</button>
+    <div class="envelope-animation" id="envelope-anim">
+      <div class="envelope-body">
+        <div class="envelope-flap" id="envelope-flap">▲</div>
+        <div class="envelope-heart">💌</div>
+      </div>
+    </div>
+    <div class="letter-content" id="letter-content" style="display:none">
+      <div class="letter-top">
+        <div class="letter-emoji" id="letter-emoji">💕</div>
+        <div class="letter-wax">🌸</div>
+      </div>
+      <h3 class="letter-title" id="letter-modal-title"></h3>
+      <p class="letter-from">De: Dani 💕 · <span id="letter-modal-date"></span></p>
+      <div class="letter-body" id="letter-modal-body"></div>
+      <div class="letter-footer">
+        <p class="letter-sign">Con todo mi amor, <em>Dani</em> 🌹</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Cápsula sellada -->
+<div class="modal-overlay" id="capsule-modal" style="display:none">
+  <div class="modal-card">
+    <button class="modal-close" id="capsule-modal-close">✕</button>
+    <div class="capsule-modal-content" id="capsule-modal-content"></div>
+  </div>
+</div>
+
+<!-- MODAL: Logro desbloqueado -->
+<div class="achievement-popup" id="achievement-popup" style="display:none">
+  <div class="achievement-popup-inner">
+    <div class="ach-popup-icon" id="ach-popup-icon">🏆</div>
+    <div class="ach-popup-text">
+      <p class="ach-popup-title">¡Logro desbloqueado!</p>
+      <p class="ach-popup-name" id="ach-popup-name"></p>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATIONS -->
+<div class="toast" id="toast"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
