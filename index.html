@@ -130,12 +130,20 @@
   <div class="card diary-editor" id="diary-editor">
     <h2 class="card-title">Mi diario 📝</h2>
     <p class="card-sub">Escribe lo que sientes. Este espacio es solo tuyo 🌸</p>
+    <div class="autosave-restore-banner" id="autosave-restore-banner" style="display:none">
+      <span>💾 Tienes un borrador de <span class="restore-time"></span></span>
+      <div class="restore-actions">
+        <button class="restore-yes">Restaurar</button>
+        <button class="restore-no">Descartar</button>
+      </div>
+    </div>
     <input type="text" class="entry-title-input" id="entry-title" placeholder="Dale un título a este momento...">
     <textarea class="diary-textarea" id="diary-text" placeholder="Hoy quiero contarte que...
 
 Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este jardín guarda cada palabra que escribas con amor... 🌸"></textarea>
     <div class="entry-footer">
       <div class="char-count"><span id="char-count">0</span> palabras escritas 💕</div>
+      <span class="autosave-indicator" id="autosave-indicator">💾 Guardado</span>
       <div class="entry-actions">
         <button class="btn-secondary" id="save-entry-btn">💾 Guardar en mi diario</button>
       </div>
@@ -147,6 +155,24 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
     <div class="entries-header">
       <h2 class="card-title">Mis memorias 🌸</h2>
       <span class="entries-count" id="entries-count">0 entradas</span>
+    </div>
+    <!-- Búsqueda y filtros -->
+    <div class="diary-filters">
+      <div class="diary-search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="diary-search" class="diary-search-input" placeholder="Buscar en mis memorias...">
+      </div>
+      <select id="diary-mood-filter" class="diary-mood-select">
+        <option value="">Todas las emociones</option>
+        <option value="feliz">😊 Feliz</option>
+        <option value="enamorada">🥰 Enamorada</option>
+        <option value="tranquila">😌 Tranquila</option>
+        <option value="triste">😢 Triste</option>
+        <option value="enojada">😤 Enojada</option>
+        <option value="ansiosa">😰 Ansiosa</option>
+        <option value="cansada">😴 Cansada</option>
+        <option value="esperanzada">🌟 Esperanzada</option>
+      </select>
     </div>
     <div class="entries-list" id="entries-list">
       <div class="empty-state" id="empty-diary">
@@ -238,6 +264,13 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
         <div class="stat-label">Mensajes de amor</div>
       </div>
     </div>
+    <!-- Barra de progreso al siguiente nivel -->
+    <div class="tree-progress-wrap">
+      <div class="tree-progress-track">
+        <div class="tree-progress-bar" id="tree-progress-bar" style="width:0%"></div>
+      </div>
+      <p class="tree-progress-label" id="tree-progress-label">Cargando...</p>
+    </div>
     <div class="tree-scene">
       <div class="tree-status-badge" id="tree-status-badge">🌱 Brote tierno</div>
       <svg id="tree-svg" viewBox="0 0 600 550" xmlns="http://www.w3.org/2000/svg">
@@ -300,7 +333,11 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
       <span>💌</span> Buzón de Dani
       <span class="unread-badge" id="unread-badge" style="display:none">0</span>
     </button>
-    <button class="dani-tab" data-dtab="write-dani"><span>✍️</span> Escribir a Dani</button>
+    <button class="dani-tab" data-dtab="write-dani">
+      <span>✍️</span> Escribir a Dani
+      <span class="unread-badge" id="alison-reply-badge" style="display:none;background:#FF85A1">0</span>
+    </button>
+    <button class="dani-tab" data-dtab="alison-reply"><span>🌸</span> Responder a Dani</button>
   </div>
 
   <!-- IA PERSONAL -->
@@ -442,6 +479,29 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
     </div>
     </div><!-- /dani-write-form -->
   </div>
+
+  <!-- ALISON RESPONDE A DANI -->
+  <div class="dani-panel" id="dpanel-alison-reply">
+    <div class="card">
+      <div class="dani-mode-banner" style="background:linear-gradient(135deg,rgba(255,179,193,0.3),rgba(255,200,221,0.2))">
+        <span>🌸</span>
+        <div><strong>Respuestas de Alison</strong><p>Aquí viven los mensajes que Alison te ha escrito, Dani 💕</p></div>
+      </div>
+      <!-- Formulario para que Alison responda -->
+      <div class="alison-reply-form">
+        <h3 class="card-title" style="font-size:17px;margin-bottom:8px">Escribirle a Dani 🌸</h3>
+        <input type="text" class="dani-input" id="alison-reply-title" placeholder="Título de tu respuesta...">
+        <textarea class="dani-textarea" id="alison-reply-body" placeholder="Escríbele con amor a Dani..."></textarea>
+        <button class="btn-primary" id="alison-reply-send-btn">🌸 Enviarle a Dani</button>
+      </div>
+      <!-- Lista de respuestas enviadas -->
+      <div style="margin-top:24px">
+        <h3 class="card-title" style="font-size:15px;margin-bottom:12px;opacity:0.7">Respuestas enviadas</h3>
+        <div id="alison-replies-list"></div>
+      </div>
+    </div>
+  </div>
+
 </section>
 
 <!-- ===== SECCIÓN EXTRAS ===== -->
@@ -453,6 +513,7 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
 
   <div class="extras-inner-tabs">
     <button class="extras-tab active" data-etab="calendar"><span>📅</span> Calendario</button>
+    <button class="extras-tab" data-etab="stats"><span>📊</span> Estadísticas</button>
     <button class="extras-tab" data-etab="capsule"><span>⏳</span> Cápsula del tiempo</button>
     <button class="extras-tab" data-etab="achievements"><span>🏆</span> Logros</button>
   </div>
@@ -478,6 +539,15 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
         <span class="legend-item"><span class="legend-dot" style="background:#FFF176"></span>Esperanzada</span>
       </div>
       <div class="calendar-grid" id="calendar-grid"></div>
+    </div>
+  </div>
+
+  <!-- ESTADÍSTICAS EMOCIONALES -->
+  <div class="extras-panel" id="epanel-stats">
+    <div class="card">
+      <h2 class="card-title">Estadísticas emocionales 📊</h2>
+      <p class="card-sub">Tu historia emocional en números y colores 🌈</p>
+      <div id="emotion-stats-container"></div>
     </div>
   </div>
 
@@ -598,6 +668,23 @@ Este mensaje es tuyo. Solo tú podrás leerlo cuando llegue el momento ✨" styl
       <p class="ach-popup-title">¡Logro desbloqueado!</p>
       <p class="ach-popup-name" id="ach-popup-name"></p>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: Respuesta de Alison -->
+<div class="modal-overlay" id="alison-reply-modal" style="display:none">
+  <div class="modal-card">
+    <button class="modal-close" id="alison-reply-modal-close">✕</button>
+    <div class="modal-header">
+      <span class="modal-mood-emoji" id="arm-emoji">🌸</span>
+      <div>
+        <h3 class="modal-title" id="arm-title"></h3>
+        <p class="modal-date" id="arm-date"></p>
+      </div>
+    </div>
+    <div class="modal-body" id="arm-body"></div>
+    <p style="font-family:var(--font-script);font-size:17px;color:var(--pink-accent);margin-top:16px">Con amor, Alison 🌸</p>
+    <button class="btn-danger" id="arm-delete">🗑️ Eliminar</button>
   </div>
 </div>
 

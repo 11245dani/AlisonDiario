@@ -27,11 +27,13 @@ const db    = getFirestore(fbApp);
 const LIZ_MAIN    = () => doc(db, 'jardin_alison', 'alison_data');
 const ENTRIES_COL = () => collection(db, 'jardin_alison', 'alison_data', 'entries');
 const BUZZON_COL  = () => collection(db, 'jardin_alison', 'alison_data', 'buzzon');
-// 🆕 Colección de moods diarios independientes del diario
 const MOODS_COL   = () => collection(db, 'jardin_alison', 'alison_data', 'daily_moods');
-const ENTRY_DOC   = (id) => doc(db, 'jardin_alison', 'alison_data', 'entries', String(id));
-const BUZZON_DOC  = (id) => doc(db, 'jardin_alison', 'alison_data', 'buzzon',  String(id));
-const MOOD_DOC    = (dateStr) => doc(db, 'jardin_alison', 'alison_data', 'daily_moods', dateStr);
+// 🆕 Respuestas de Alison a Dani — llegan al área protegida de Dani
+const ALISON_BUZZON_COL = () => collection(db, 'jardin_alison', 'alison_data', 'alison_replies');
+const ENTRY_DOC         = (id) => doc(db, 'jardin_alison', 'alison_data', 'entries', String(id));
+const BUZZON_DOC        = (id) => doc(db, 'jardin_alison', 'alison_data', 'buzzon',  String(id));
+const MOOD_DOC          = (dateStr) => doc(db, 'jardin_alison', 'alison_data', 'daily_moods', dateStr);
+const ALISON_REPLY_DOC  = (id) => doc(db, 'jardin_alison', 'alison_data', 'alison_replies', String(id));
 
 // ── Escritura en la nube ────────────────────────────────────
 async function cloudSaveMain(data) {
@@ -53,6 +55,34 @@ async function cloudSaveBuzzon(msg) {
 async function cloudUpdateBuzzon(id, partial) {
   try { await updateDoc(BUZZON_DOC(id), partial); }
   catch(e) { console.error('cloudUpdateBuzzon:', e); }
+}
+
+// 🆕 Alison responde a Dani — va a la colección de respuestas
+async function cloudSaveAlisonReply(reply) {
+  try { await setDoc(ALISON_REPLY_DOC(reply.id), reply); }
+  catch(e) { console.error('cloudSaveAlisonReply:', e); showToast('Error al enviar tu respuesta 💌'); }
+}
+async function cloudDeleteAlisonReply(id) {
+  try { await deleteDoc(ALISON_REPLY_DOC(id)); }
+  catch(e) { console.error('cloudDeleteAlisonReply:', e); }
+}
+
+// 🆕 Eliminar un mood del día desde Firestore (sobreescribe el array de moods)
+async function cloudDeleteDailyMoodItem(dateKey, moodToRemove) {
+  try {
+    const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const existing = await getDoc(MOOD_DOC(dateKey));
+    if (!existing.exists()) return;
+    const d = existing.data();
+    let moods = d.moods || [];
+    moods = moods.filter(m => m.mood !== moodToRemove);
+    if (moods.length === 0) {
+      await deleteDoc(MOOD_DOC(dateKey));
+    } else {
+      const primary = moods[moods.length - 1];
+      await setDoc(MOOD_DOC(dateKey), { ...d, moods, mood: primary.mood, moodEmoji: primary.moodEmoji, scale: primary.scale });
+    }
+  } catch(e) { console.error('cloudDeleteDailyMoodItem:', e); }
 }
 
 // 🆕 Guardar mood del día — soporta múltiples emociones por día
@@ -145,6 +175,13 @@ function startRealtimeSync() {
     state.buzzon = snap.docs.map(d => d.data());
     updateUnreadBadge();
     if (document.getElementById('dpanel-buzzon')?.classList.contains('active')) renderBuzzon();
+  });
+
+  // 🆕 Respuestas de Alison — tiempo real (Dani las ve en su área con PIN)
+  onSnapshot(query(ALISON_BUZZON_COL(), orderBy('date', 'desc')), (snap) => {
+    state.alisonReplies = snap.docs.map(d => d.data());
+    updateAlisonReplyBadge();
+    if (document.getElementById('dpanel-write-dani')?.classList.contains('active')) renderAlisonReplies();
   });
 }
 
@@ -253,9 +290,10 @@ function initIntroScreen() {
 const defaultState = {
   entries: [], drafts: [],
   tree: { level:1, waterDays:0, lastWatered:null, messages:[], totalMessages:0 },
-  today: { mood:null, moodEmoji:null, scale:7, motivationalMsg:null, confirmed:false, date:null },
+  today: { mood:null, moodEmoji:null, scale:7, motivationalMsg:null, confirmed:false, date:null, moodsToday:[] },
   buzzon: [], chatHistory: [], capsules: [], achievements: {}, calendarMonth: null,
-  dailyMoods: [] // 🆕 moods independientes para el calendario
+  dailyMoods: [],
+  alisonReplies: [] // 🆕 respuestas de Alison a Dani
 };
 let state        = JSON.parse(JSON.stringify(defaultState));
 let selectedMood = null;
@@ -519,7 +557,7 @@ document.getElementById('confirm-mood-btn').addEventListener('click', async () =
   gsap.to('#mood-section',{scale:0.98,opacity:0.7,duration:0.3,yoyo:true,repeat:1});
 });
 
-// ===================== REMEMBER DE EMOCIONES DEL DÍA =====================
+// ===================== REMEMBER DE EMOCIONES DEL DÍA — TIMELINE =====================
 function renderTodayMoodsRemember() {
   const container = document.getElementById('today-moods-remember');
   if (!container) return;
@@ -528,36 +566,123 @@ function renderTodayMoodsRemember() {
   container.style.display = 'block';
   const isMulti = moods.length > 1;
   const colors = moods.map(m => MOOD_COLORS[m.mood]||'#FFD6E7');
-  const gradBg = colors.length > 1 
-    ? `linear-gradient(135deg, ${colors.map((c,i)=>`${c}44 ${Math.round(i/(colors.length-1)*100)}%`).join(', ')})` 
-    : `${colors[0]}33`;
+  const gradBg = colors.length > 1
+    ? `linear-gradient(135deg, ${colors.map((c,i)=>`${c}33 ${Math.round(i/(colors.length-1)*100)}%`).join(', ')})`
+    : `${colors[0]}22`;
   container.style.background = gradBg;
-  const chipsHTML = moods.map(m=>`<span class="remember-chip" style="background:${MOOD_COLORS[m.mood]||'#FFD6E7'}55;border-color:${MOOD_COLORS[m.mood]||'#FFD6E7'}">${m.moodEmoji||'✨'} ${m.mood}</span>`).join('');
+  container.style.border = `1.5px solid ${colors[0]}66`;
+
+  // Timeline items
+  const timelineHTML = moods.map((m, i) => {
+    const timeStr = m.time ? new Date(m.time).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}) : '';
+    return `
+      <div class="mood-timeline-item" data-idx="${i}">
+        <div class="mood-tl-dot" style="background:${MOOD_COLORS[m.mood]||'#FFD6E7'}"></div>
+        <div class="mood-tl-time">${timeStr}</div>
+        <div class="mood-tl-emoji">${m.moodEmoji||'✨'}</div>
+        <div class="mood-tl-label" style="color:${MOOD_COLORS[m.mood]||'#FFD6E7'}">${m.mood}</div>
+        <div class="mood-tl-scale">${m.scale||7}/10</div>
+        <button class="mood-tl-delete" data-mood="${m.mood}" title="Eliminar esta emoción">✕</button>
+      </div>`;
+  }).join('');
+
   container.innerHTML = `
-    <div class="remember-inner">
-      <div class="remember-icon">${isMulti?'🌈':'🌸'}</div>
-      <div class="remember-text">
-        <p class="remember-label">${isMulti?'Mezcla de emociones de hoy':'Tu estado de hoy'}</p>
-        <div class="remember-chips">${chipsHTML}</div>
-      </div>
-      <button class="remember-add-btn" id="remember-add-btn" title="Agregar otra emoción">+ Agregar</button>
-    </div>`;
-  document.getElementById('remember-add-btn')?.addEventListener('click', ()=>{
+    <div class="remember-header">
+      <span class="remember-icon">${isMulti?'🌈':'🌸'}</span>
+      <span class="remember-label">${isMulti?'Tu día emocional · línea del tiempo':'Tu estado de hoy'}</span>
+      <button class="remember-add-btn" id="remember-add-btn">+ Agregar</button>
+    </div>
+    <div class="mood-timeline">${timelineHTML}</div>`;
+
+  // Agregar otra emoción
+  container.querySelector('#remember-add-btn')?.addEventListener('click', () => {
     document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));
     selectedMood = null;
     document.getElementById('mood-section').scrollIntoView({behavior:'smooth', block:'center'});
     showToast('Selecciona otra emoción para agregar 🌸');
+  });
+
+  // Eliminar mood individual
+  container.querySelectorAll('.mood-tl-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const moodName = btn.dataset.mood;
+      state.today.moodsToday = state.today.moodsToday.filter(m => m.mood !== moodName);
+      // Si era el mood "principal" de hoy, actualizar
+      if (state.today.mood === moodName) {
+        const last = state.today.moodsToday[state.today.moodsToday.length - 1];
+        state.today.mood      = last?.mood || null;
+        state.today.moodEmoji = last?.moodEmoji || null;
+        state.today.scale     = last?.scale || 7;
+      }
+      cloudSaveMain({ today: state.today });
+      await cloudDeleteDailyMoodItem(todayStr(), moodName);
+      // Actualizar botones de mood
+      document.querySelectorAll('.mood-btn').forEach(b =>
+        b.classList.toggle('selected', b.dataset.mood === state.today.mood));
+      renderTodayMoodsRemember();
+      showToast(`Emoción "${moodName}" eliminada 🌸`);
+    });
   });
 }
 
 // ===================== DIARY =====================
 const diaryTextarea = document.getElementById('diary-text');
 const charCount     = document.getElementById('char-count');
+let autoSaveTimer = null;
+let autoSaveDraft = null;
 
 diaryTextarea.addEventListener('input', () => {
   const words = diaryTextarea.value.trim()===''?0:diaryTextarea.value.trim().split(/\s+/).length;
   charCount.textContent = words;
+  // Auto-guardado local cada 4 segundos de inactividad
+  clearTimeout(autoSaveTimer);
+  if (diaryTextarea.value.trim().length > 10) {
+    autoSaveTimer = setTimeout(() => {
+      autoSaveDraft = { text: diaryTextarea.value, title: document.getElementById('entry-title').value, savedAt: Date.now() };
+      try { localStorage.setItem('alison_diary_autosave', JSON.stringify(autoSaveDraft)); } catch(e){}
+      showAutoSavePulse();
+    }, 4000);
+  }
 });
+
+function showAutoSavePulse() {
+  const el = document.getElementById('autosave-indicator');
+  if (!el) return;
+  el.textContent = '💾 Guardado automático';
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 2500);
+}
+
+function restoreAutosave() {
+  try {
+    const saved = localStorage.getItem('alison_diary_autosave');
+    if (!saved) return;
+    const draft = JSON.parse(saved);
+    if (draft && draft.text && diaryTextarea.value.trim() === '') {
+      const minutesAgo = Math.round((Date.now() - draft.savedAt) / 60000);
+      if (minutesAgo < 120) { // Restaurar solo si es reciente (<2h)
+        const banner = document.getElementById('autosave-restore-banner');
+        if (banner) {
+          banner.style.display = 'flex';
+          banner.querySelector('.restore-time').textContent = minutesAgo === 0 ? 'hace un momento' : `hace ${minutesAgo} min`;
+          banner.querySelector('.restore-yes').onclick = () => {
+            diaryTextarea.value = draft.text;
+            document.getElementById('entry-title').value = draft.title || '';
+            const words = draft.text.trim().split(/\s+/).length;
+            charCount.textContent = words;
+            banner.style.display = 'none';
+            showToast('Borrador restaurado 💾', true);
+          };
+          banner.querySelector('.restore-no').onclick = () => {
+            localStorage.removeItem('alison_diary_autosave');
+            banner.style.display = 'none';
+          };
+        }
+      }
+    }
+  } catch(e) {}
+}
 
 document.getElementById('save-entry-btn').addEventListener('click', async () => {
   const text = diaryTextarea.value.trim();
@@ -587,25 +712,46 @@ document.getElementById('save-entry-btn').addEventListener('click', async () => 
   diaryTextarea.value = '';
   document.getElementById('entry-title').value = '';
   charCount.textContent = '0';
+  localStorage.removeItem('alison_diary_autosave');
   showToast('¡Entrada guardada con amor! 💕', true);
   gsap.fromTo('#save-entry-btn',{scale:1},{scale:1.1,duration:0.15,yoyo:true,repeat:1});
 });
+
+// Estado de filtros del diario
+let diaryFilter = { query: '', mood: '' };
 
 function renderEntries() {
   const list  = document.getElementById('entries-list');
   const empty = document.getElementById('empty-diary');
   const count = document.getElementById('entries-count');
-  count.textContent = `${state.entries.length} ${state.entries.length===1?'entrada':'entradas'}`;
-  if (state.entries.length===0) { list.innerHTML=''; list.appendChild(empty); return; }
+
+  // Aplicar filtros
+  let filtered = state.entries;
+  if (diaryFilter.query) {
+    const q = diaryFilter.query.toLowerCase();
+    filtered = filtered.filter(e => e.title?.toLowerCase().includes(q) || e.text?.toLowerCase().includes(q));
+  }
+  if (diaryFilter.mood) {
+    filtered = filtered.filter(e => e.mood === diaryFilter.mood);
+  }
+
+  count.textContent = `${filtered.length} ${filtered.length===1?'entrada':'entradas'}${diaryFilter.query||diaryFilter.mood?' (filtradas)':''}`;
+  if (filtered.length===0) { list.innerHTML=''; list.appendChild(empty); return; }
   list.innerHTML = '';
-  state.entries.forEach((entry,i) => {
+  filtered.forEach((entry,i) => {
     const item = document.createElement('div');
     item.className = 'entry-item';
+    // Resaltar búsqueda en preview
+    let preview = entry.text.substring(0,80)+(entry.text.length>80?'...':'');
+    if (diaryFilter.query) {
+      const re = new RegExp(`(${diaryFilter.query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+      preview = preview.replace(re, '<mark>$1</mark>');
+    }
     item.innerHTML = `
       <div class="entry-emoji">${entry.moodEmoji||'📝'}</div>
       <div class="entry-info">
         <div class="entry-name">${entry.title}</div>
-        <div class="entry-preview">${entry.text.substring(0,80)}${entry.text.length>80?'...':''}</div>
+        <div class="entry-preview">${preview}</div>
       </div>
       <div class="entry-meta">
         <div class="entry-date">${formatDateShort(entry.date)}</div>
@@ -613,7 +759,7 @@ function renderEntries() {
       </div>`;
     item.addEventListener('click',()=>openEntryModal(entry));
     list.appendChild(item);
-    gsap.fromTo(item,{opacity:0,x:-20},{opacity:1,x:0,duration:0.35,delay:i*0.05,ease:'power2.out'});
+    gsap.fromTo(item,{opacity:0,x:-20},{opacity:1,x:0,duration:0.35,delay:i*0.04,ease:'power2.out'});
   });
 }
 
@@ -735,6 +881,21 @@ function renderTree() {
   document.getElementById('tree-level-display').textContent=level;
   const ts=treeStates[level-1]||treeStates[treeStates.length-1];
   document.getElementById('tree-status-badge').textContent=ts.name;
+
+  // Barra de progreso al siguiente nivel
+  const daysIntoLevel = t.waterDays % 3;
+  const pct = level >= 6 ? 100 : Math.round((daysIntoLevel / 3) * 100);
+  const progressEl = document.getElementById('tree-progress-bar');
+  const progressLabel = document.getElementById('tree-progress-label');
+  if (progressEl) {
+    gsap.to(progressEl, { width: pct + '%', duration: 1.2, ease: 'power2.out' });
+  }
+  if (progressLabel) {
+    progressLabel.textContent = level >= 6
+      ? '¡Árbol del alma completo! 🌟'
+      : `${pct}% hacia el nivel ${level + 1} · faltan ${3 - daysIntoLevel} día${3-daysIntoLevel===1?'':'s'}`;
+  }
+
   const r=ts.canopy;
   gsap.to('#canopy-main',{attr:{r:r},      duration:1.5,ease:'elastic.out(1,0.5)'});
   gsap.to('#canopy-l',   {attr:{r:r*0.75},duration:1.5,delay:0.1,ease:'elastic.out(1,0.5)'});
@@ -747,7 +908,6 @@ function renderTree() {
     });
   }
   renderBranchFlowers();
-  // FIX: Comparar solo la parte de fecha (YYYY-MM-DD) del lastWatered con hoy
   const lastWateredDate = t.lastWatered ? (t.lastWatered.includes('T') ? t.lastWatered.split('T')[0] : t.lastWatered) : null;
   const alreadyWatered = lastWateredDate === todayStr();
   const waterBtn=document.getElementById('water-btn');
@@ -901,11 +1061,12 @@ document.querySelectorAll('.dani-tab').forEach(tab => {
     panel.classList.add('active');
     if(target==='buzzon') { renderBuzzon(); updateUnreadBadge(); }
     if(target==='write-dani') setTimeout(initPinLock, 50);
+    if(target==='alison-reply') { renderAlisonReplies(); updateAlisonReplyBadge(); }
     gsap.fromTo(panel,{opacity:0,y:12},{opacity:1,y:0,duration:0.35,ease:'power2.out'});
   });
 });
 
-function initDaniTab(){ updateAIContextPill(); updateUnreadBadge(); renderBuzzon(); }
+function initDaniTab(){ updateAIContextPill(); updateUnreadBadge(); updateAlisonReplyBadge(); renderBuzzon(); }
 
 function updateAIContextPill(){
   const pill=document.getElementById('ai-context-text');
@@ -916,16 +1077,163 @@ function updateAIContextPill(){
   else      pill.textContent=`📖 ${state.entries.length} entradas en tu diario · Dile a la IA cómo te sientes hoy`;
 }
 
-function updateUnreadBadge(){
-  const today=todayStr();
-  const unread=(state.buzzon||[]).filter(m=>{
-    const ud=m.scheduledFor?m.scheduledFor.split('T')[0]:null;
-    return !m.read&&(!ud||ud<=today);
-  }).length;
-  const badge=document.getElementById('unread-badge');
-  if(!badge) return;
-  if(unread>0){badge.textContent=unread;badge.style.display='flex';}
-  else badge.style.display='none';
+// 🆕 Badge de respuestas de Alison (aparece en el tab "Escribir a Dani")
+function updateAlisonReplyBadge() {
+  const unread = (state.alisonReplies||[]).filter(r => !r.readByDani).length;
+  const badge = document.getElementById('alison-reply-badge');
+  if (!badge) return;
+  if (unread > 0) { badge.textContent = unread; badge.style.display = 'flex'; }
+  else badge.style.display = 'none';
+}
+
+// 🆕 Alison envía respuesta a Dani
+async function sendAlisonReply() {
+  const titleEl = document.getElementById('alison-reply-title');
+  const bodyEl  = document.getElementById('alison-reply-body');
+  const title = titleEl?.value.trim();
+  const body  = bodyEl?.value.trim();
+  if (!title || !body) { showToast('Escribe un título y tu respuesta 💕'); return; }
+  const reply = {
+    id: Date.now(), title, body,
+    emoji: '🌸', type: 'respuesta',
+    date: new Date().toISOString(),
+    readByDani: false,
+    from: 'Alison'
+  };
+  await cloudSaveAlisonReply(reply);
+  if (titleEl) titleEl.value = '';
+  if (bodyEl)  bodyEl.value  = '';
+  showToast('💌 ¡Respuesta enviada a Dani!', true);
+  gsap.fromTo('#alison-reply-send-btn',{scale:1},{scale:1.1,duration:0.15,yoyo:true,repeat:1});
+}
+
+// 🆕 Dani ve las respuestas de Alison (dentro del área con PIN)
+function renderAlisonReplies() {
+  const container = document.getElementById('alison-replies-list');
+  if (!container) return;
+  const replies = state.alisonReplies || [];
+  if (replies.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🌸</div><p>Alison aún no ha respondido</p><p class="empty-sub">Cuando Alison te escriba, sus mensajes aparecerán aquí 💕</p></div>`;
+    return;
+  }
+  container.innerHTML = '';
+  replies.forEach((r, i) => {
+    const item = document.createElement('div');
+    item.className = `buzzon-item alison-reply-item ${r.readByDani?'':'unread'}`;
+    item.innerHTML = `
+      <div class="buzzon-emoji">🌸</div>
+      <div class="buzzon-info">
+        <div class="buzzon-title">${r.title}</div>
+        <div class="buzzon-preview">${(r.body||'').substring(0,60)}...</div>
+      </div>
+      <div class="buzzon-meta">
+        <div class="buzzon-date">${formatDateShort(r.date)}</div>
+        <div class="buzzon-type">💌 De Alison</div>
+      </div>`;
+    item.addEventListener('click', async () => {
+      openAlisonReplyModal(r);
+      if (!r.readByDani) {
+        r.readByDani = true;
+        await cloudSaveAlisonReply(r);
+        updateAlisonReplyBadge();
+        renderAlisonReplies();
+      }
+    });
+    container.appendChild(item);
+    gsap.fromTo(item,{opacity:0,x:-15},{opacity:1,x:0,duration:0.3,delay:i*0.06,ease:'power2.out'});
+  });
+}
+
+function openAlisonReplyModal(reply) {
+  const modal = document.getElementById('alison-reply-modal');
+  if (!modal) return;
+  document.getElementById('arm-emoji').textContent = '🌸';
+  document.getElementById('arm-title').textContent = reply.title;
+  document.getElementById('arm-date').textContent  = formatDate(reply.date);
+  document.getElementById('arm-body').textContent  = reply.body;
+  modal.style.display = 'flex';
+  gsap.fromTo(modal.querySelector('.modal-card'),{opacity:0,scale:0.9,y:20},{opacity:1,scale:1,y:0,duration:0.4,ease:'back.out(1.7)'});
+  document.getElementById('arm-delete').onclick = async () => {
+    await cloudDeleteAlisonReply(reply.id);
+    modal.style.display = 'none';
+    showToast('Respuesta eliminada');
+  };
+}
+
+// ============================================================
+// ESTADÍSTICAS EMOCIONALES
+// ============================================================
+function renderEmotionStats() {
+  const container = document.getElementById('emotion-stats-container');
+  if (!container) return;
+  const allMoods = state.dailyMoods || [];
+  if (allMoods.length < 2) {
+    container.innerHTML = `<p class="empty-sub" style="text-align:center;padding:20px">Necesitas más días registrados para ver estadísticas 🌱</p>`;
+    return;
+  }
+
+  // Últimos 7 días
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const found = allMoods.find(m => m.date === key);
+    last7.push({ key, date: d, data: found || null });
+  }
+
+  // Promedio de escala
+  const withScale = allMoods.filter(m => m.scale);
+  const avgScale = withScale.length ? (withScale.reduce((s,m) => s + (m.scale||7), 0) / withScale.length).toFixed(1) : '—';
+
+  // Mood más frecuente
+  const moodCount = {};
+  allMoods.forEach(m => { if(m.mood) moodCount[m.mood] = (moodCount[m.mood]||0)+1; });
+  const topMood = Object.entries(moodCount).sort((a,b)=>b[1]-a[1])[0];
+  const moodEmojis = {feliz:'😊',enamorada:'🥰',tranquila:'😌',triste:'😢',enojada:'😤',ansiosa:'😰',cansada:'😴',esperanzada:'🌟'};
+
+  // Gráfica semanal
+  const maxScale = 10;
+  const barsHTML = last7.map(({ date, data }) => {
+    const scale = data?.scale || 0;
+    const mood  = data?.mood  || '';
+    const color = MOOD_COLORS[mood] || '#e8c4de';
+    const heightPct = scale ? Math.round((scale / maxScale) * 100) : 4;
+    const dayName = date.toLocaleDateString('es-ES',{weekday:'short'}).slice(0,3);
+    return `
+      <div class="stat-bar-wrap" title="${mood ? mood + ' · ' + scale + '/10' : 'Sin registro'}">
+        <div class="stat-bar-fill" style="height:${heightPct}%;background:${color};opacity:${scale?1:0.2}"></div>
+        <div class="stat-bar-day">${dayName}</div>
+        ${scale ? `<div class="stat-bar-val" style="color:${color}">${scale}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="stats-row">
+      <div class="stat-pill">
+        <div class="stat-pill-num">${avgScale}</div>
+        <div class="stat-pill-label">Promedio semanal 🌿</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-num">${allMoods.length}</div>
+        <div class="stat-pill-label">Días registrados 📅</div>
+      </div>
+      ${topMood ? `<div class="stat-pill">
+        <div class="stat-pill-num">${moodEmojis[topMood[0]]||'✨'}</div>
+        <div class="stat-pill-label">Tu emoción más frecuente<br><small>${topMood[0]}</small></div>
+      </div>` : ''}
+    </div>
+    <div class="stats-chart-title">Últimos 7 días 📊</div>
+    <div class="stats-bars">${barsHTML}</div>
+    <p class="stats-insight">${getWeekInsight(avgScale, topMood)}</p>`;
+}
+
+function getWeekInsight(avg, topMood) {
+  const n = parseFloat(avg);
+  if (isNaN(n)) return '¡Sigue registrando tus emociones para ver tu historia! 🌱';
+  if (n >= 8) return `Esta semana tu promedio fue ${avg} ✨ ¡Has tenido una semana preciosa!`;
+  if (n >= 6) return `Esta semana tu promedio fue ${avg} 🌿 Un buen equilibrio emocional.`;
+  if (n >= 4) return `Esta semana tu promedio fue ${avg} 🌧️ Han sido días de montaña rusa, y eso también está bien.`;
+  return `Esta semana tu promedio fue ${avg} 💙 Has pasado días difíciles. Recuerda que siempre pasa.`;
 }
 
 // ---- AI Chat ----
@@ -1114,10 +1422,11 @@ document.querySelectorAll('.extras-tab').forEach(tab=>{
     if(target==='calendar')     renderCalendar();
     if(target==='capsule')      renderCapsules();
     if(target==='achievements') renderAchievements();
+    if(target==='stats')        renderEmotionStats();
   });
 });
 
-function initExtrasTab(){ renderCalendar(); renderCapsules(); renderAchievements(); }
+function initExtrasTab(){ renderCalendar(); renderCapsules(); renderAchievements(); renderEmotionStats(); }
 
 // ---- CALENDARIO (FIX PRINCIPAL) ----
 // FIX: Ahora fusiona state.entries Y state.dailyMoods para colorear el calendario
@@ -1407,6 +1716,36 @@ function runInit() {
   introAnims();
   startRealtimeSync();
   if(document.getElementById('tab-tree')?.classList.contains('active')) renderTree();
+
+  // Auto-guardado: restaurar borrador si existe
+  setTimeout(restoreAutosave, 1200);
+
+  // Búsqueda en el diario
+  const searchInput = document.getElementById('diary-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      diaryFilter.query = searchInput.value.trim();
+      renderEntries();
+    });
+  }
+  const moodFilter = document.getElementById('diary-mood-filter');
+  if (moodFilter) {
+    moodFilter.addEventListener('change', () => {
+      diaryFilter.mood = moodFilter.value;
+      renderEntries();
+    });
+  }
+
+  // Botón responder de Alison
+  document.getElementById('alison-reply-send-btn')?.addEventListener('click', sendAlisonReply);
+
+  // Modal respuesta de Alison — cerrar
+  document.getElementById('alison-reply-modal-close')?.addEventListener('click', () => {
+    document.getElementById('alison-reply-modal').style.display='none';
+  });
+  document.getElementById('alison-reply-modal')?.addEventListener('click', e => {
+    if(e.target===e.currentTarget) e.currentTarget.style.display='none';
+  });
 }
 
 if (document.readyState === 'loading') {
