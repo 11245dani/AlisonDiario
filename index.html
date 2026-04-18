@@ -328,16 +328,20 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
   </div>
 
   <div class="dani-inner-tabs">
-    <button class="dani-tab active" data-dtab="ai"><span>🤖</span> Tu IA personal</button>
+    <button class="dani-tab active" data-dtab="ai"><span>🤖</span> Tu IA</button>
     <button class="dani-tab" data-dtab="buzzon">
-      <span>💌</span> Buzón de Dani
+      <span>💌</span> Buzón
       <span class="unread-badge" id="unread-badge" style="display:none">0</span>
     </button>
+    <button class="dani-tab" data-dtab="livechat">
+      <span>💬</span> Chat
+      <span class="unread-badge" id="chat-live-badge" style="display:none;background:#a8d8ea">0</span>
+    </button>
     <button class="dani-tab" data-dtab="write-dani">
-      <span>✍️</span> Escribir a Dani
+      <span>✍️</span> Dani escribe
       <span class="unread-badge" id="alison-reply-badge" style="display:none;background:#FF85A1">0</span>
     </button>
-    <button class="dani-tab" data-dtab="alison-reply"><span>🌸</span> Responder a Dani</button>
+    <button class="dani-tab" data-dtab="alison-reply"><span>🌸</span> Alison responde</button>
   </div>
 
   <!-- IA PERSONAL -->
@@ -373,6 +377,30 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
           <button class="quick-btn" data-prompt="Ayúdame a reflexionar sobre cómo me he sentido estos días 🌙">🌙 Reflexionar</button>
           <button class="quick-btn" data-prompt="Dame un mensaje de amor especial de Dani 💕">💕 Mensaje de Dani</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT EN TIEMPO REAL -->
+  <div class="dani-panel" id="dpanel-livechat">
+    <div class="card lc-card">
+      <div class="lc-header">
+        <div class="lc-header-info">
+          <div class="lc-avatar">💬</div>
+          <div>
+            <div class="lc-title">Dani <span style="opacity:.5">↔</span> Alison</div>
+            <div class="lc-subtitle">Chat en tiempo real 💕</div>
+          </div>
+        </div>
+        <div class="lc-sender-area">
+          <div class="lc-sender-label" id="chat-sender-label">🌸 Escribiendo como <strong>Alison</strong></div>
+          <button class="lc-toggle-btn" id="chat-sender-toggle">🔄 Cambiar a Dani</button>
+        </div>
+      </div>
+      <div class="lc-messages-area" id="live-chat-messages"></div>
+      <div class="lc-input-area">
+        <textarea class="lc-input" id="live-chat-input" placeholder="Escríbele con amor... 💕" rows="2"></textarea>
+        <button class="lc-send-btn" id="live-chat-send">💌</button>
       </div>
     </div>
   </div>
@@ -549,6 +577,16 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
       <p class="card-sub">Tu historia emocional en números y colores 🌈</p>
       <div id="emotion-stats-container"></div>
     </div>
+    <div class="card">
+      <h2 class="card-title">Recordatorio diario ⏰</h2>
+      <p class="card-sub">Te recordaré escribir en tu jardín a la hora que elijas 🌸</p>
+      <div class="reminder-setup">
+        <input type="time" id="reminder-time-input" class="reminder-time-input">
+        <button class="btn-primary" id="reminder-time-save" style="flex:1">⏰ Guardar recordatorio</button>
+        <button class="btn-secondary" id="reminder-time-clear">Desactivar</button>
+      </div>
+      <p class="form-hint">El recordatorio aparece aunque tengas la página abierta. Si le das permiso de notificaciones, también recibirás una notificación del sistema 🌸</p>
+    </div>
   </div>
 
   <!-- CÁPSULA DEL TIEMPO -->
@@ -645,6 +683,7 @@ Este mensaje es tuyo. Solo tú podrás leerlo cuando llegue el momento ✨" styl
       <h3 class="letter-title" id="letter-modal-title"></h3>
       <p class="letter-from">De: Dani 💕 · <span id="letter-modal-date"></span></p>
       <div class="letter-body" id="letter-modal-body"></div>
+      <div class="letter-reactions-bar" id="letter-reactions-bar"></div>
       <div class="letter-footer">
         <p class="letter-sign">Con todo mi amor, <em>Dani</em> 🌹</p>
       </div>

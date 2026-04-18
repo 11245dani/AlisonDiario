@@ -1716,3 +1716,218 @@ button, input, textarea, a, select, label,
 }
 .alison-reply-item { border-left: 3px solid #FF85A1 !important; }
 
+
+/* ============================================================
+   CHAT EN TIEMPO REAL + REACCIONES + NOTIFICACIONES v4
+   ============================================================ */
+
+/* ── Live Chat ────────────────────────────────────────────── */
+.lc-card { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+
+.lc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px; flex-wrap: wrap; gap: 10px;
+  background: linear-gradient(135deg, rgba(255,200,221,0.3), rgba(205,180,219,0.2));
+  border-bottom: 1px solid rgba(255,179,193,0.2);
+}
+.lc-header-info { display: flex; align-items: center; gap: 12px; }
+.lc-avatar { font-size: 28px; }
+.lc-title { font-family: var(--font-display); font-size: 18px; color: var(--black-soft); }
+.lc-subtitle { font-size: 12px; color: var(--charcoal); opacity: 0.6; }
+.lc-sender-area { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lc-sender-label { font-size: 12px; font-family: var(--font-body); }
+.lc-toggle-btn {
+  font-size: 11px; padding: 4px 12px; border-radius: 20px;
+  border: 1.5px solid var(--pink-200); background: rgba(255,255,255,0.5);
+  cursor: none; font-family: var(--font-body); color: var(--charcoal);
+  transition: all 0.2s;
+}
+.lc-toggle-btn:hover { border-color: var(--pink-accent); color: var(--pink-accent); }
+
+.lc-messages-area {
+  flex: 1; min-height: 300px; max-height: 420px;
+  overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  scroll-behavior: smooth;
+}
+.lc-messages-area::-webkit-scrollbar { width: 4px; }
+.lc-messages-area::-webkit-scrollbar-thumb { background: var(--pink-200); border-radius: 4px; }
+
+.lc-empty { text-align: center; padding: 40px 20px; color: var(--charcoal); opacity: 0.5; }
+.lc-empty span { font-size: 36px; display: block; margin-bottom: 10px; }
+
+.lc-date-sep {
+  text-align: center; font-size: 11px; color: var(--charcoal); opacity: 0.45;
+  margin: 10px 0 4px; font-family: var(--font-body);
+  background: rgba(255,255,255,0.4); border-radius: 20px;
+  padding: 3px 12px; width: fit-content; margin: 10px auto 4px;
+}
+
+.lc-msg {
+  display: flex; align-items: flex-end; gap: 8px; margin-bottom: 6px;
+  position: relative;
+}
+.lc-msg-me  { flex-direction: row-reverse; }
+.lc-msg-them { flex-direction: row; }
+
+.lc-bubble {
+  max-width: 72%; padding: 10px 14px; border-radius: 18px;
+  position: relative; word-break: break-word;
+}
+.lc-msg-me   .lc-bubble {
+  background: linear-gradient(135deg, var(--pink-accent), var(--pink-400));
+  color: white; border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 3px 12px rgba(255,92,138,0.25);
+}
+.lc-msg-them .lc-bubble {
+  background: rgba(255,255,255,0.75); color: var(--black-soft);
+  border-radius: 18px 18px 18px 4px; border: 1px solid var(--pink-200);
+  backdrop-filter: blur(8px);
+}
+.lc-sender { font-size: 10px; font-weight: 700; margin-bottom: 4px; opacity: 0.7; }
+.lc-msg-me   .lc-sender { color: rgba(255,255,255,0.8); }
+.lc-msg-them .lc-sender { color: var(--pink-accent); }
+.lc-text { font-size: 14px; line-height: 1.5; }
+.lc-msg-me   .lc-text { color: white; }
+.lc-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; justify-content: flex-end; }
+.lc-time { font-size: 10px; opacity: 0.6; }
+.lc-msg-me .lc-time { color: rgba(255,255,255,0.7); }
+.lc-read { font-size: 11px; color: rgba(255,255,255,0.8); }
+
+.lc-reactions-bar {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+}
+.lc-reaction {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: rgba(255,255,255,0.7); border: 1.5px solid var(--pink-200);
+  border-radius: 20px; padding: 2px 8px; font-size: 12px;
+  cursor: none; transition: all 0.2s;
+}
+.lc-reaction-mine { background: rgba(255,133,161,0.2); border-color: var(--pink-accent); }
+.lc-reaction:hover { transform: scale(1.1); }
+
+.lc-react-btn {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(255,255,255,0.6); border: 1.5px solid var(--pink-200);
+  font-size: 13px; cursor: none; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  flex-shrink: 0; color: var(--charcoal);
+}
+.lc-msg:hover .lc-react-btn { opacity: 1; }
+.lc-react-btn:hover { transform: scale(1.15); border-color: var(--pink-accent); }
+
+.lc-react-picker {
+  position: absolute; bottom: 100%; left: 0;
+  background: white; border-radius: 24px; padding: 8px 10px;
+  display: flex; gap: 6px; box-shadow: var(--shadow-md);
+  border: 1px solid var(--pink-200); z-index: 20;
+}
+.lc-msg-me .lc-react-picker { left: auto; right: 0; }
+.lc-react-opt {
+  font-size: 20px; background: none; border: none; cursor: none;
+  border-radius: 8px; padding: 4px; transition: transform 0.15s;
+}
+.lc-react-opt:hover { transform: scale(1.3); }
+
+.lc-input-area {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 14px 18px; border-top: 1px solid rgba(255,179,193,0.2);
+  background: rgba(255,255,255,0.4);
+}
+.lc-input {
+  flex: 1; border: 1.5px solid var(--pink-200); border-radius: 18px;
+  padding: 10px 16px; font-family: var(--font-body); font-size: 14px;
+  color: var(--black-soft); background: rgba(255,255,255,0.7);
+  outline: none; resize: none; max-height: 100px; overflow-y: auto;
+  transition: border-color 0.2s;
+}
+.lc-input:focus { border-color: var(--pink-accent); }
+.lc-input::placeholder { color: var(--pink-300); }
+.lc-send-btn {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--pink-accent), var(--pink-400));
+  border: none; font-size: 20px; cursor: none;
+  box-shadow: 0 3px 12px rgba(255,92,138,0.3);
+  transition: transform 0.2s, box-shadow 0.2s; flex-shrink: 0;
+}
+.lc-send-btn:hover { transform: scale(1.1); box-shadow: 0 5px 18px rgba(255,92,138,0.4); }
+.lc-send-btn:active { transform: scale(0.95); }
+
+/* ── Reacciones en carta del buzón ───────────────────────── */
+.letter-reactions-bar {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 16px 0 8px; padding: 12px;
+  background: rgba(255,255,255,0.5); border-radius: var(--radius-sm);
+  border: 1px solid var(--pink-200);
+}
+.letter-react-btn {
+  font-size: 22px; background: rgba(255,255,255,0.6);
+  border: 2px solid var(--pink-200); border-radius: 12px;
+  padding: 6px 10px; cursor: none; transition: all 0.2s;
+  display: flex; align-items: center; gap: 4px;
+}
+.letter-react-btn span { font-size: 13px; color: var(--charcoal); }
+.letter-react-btn:hover { transform: scale(1.15); border-color: var(--pink-300); }
+.letter-react-btn.active {
+  border-color: var(--pink-accent);
+  background: linear-gradient(135deg, rgba(255,240,245,0.9), rgba(255,200,221,0.5));
+  box-shadow: 0 2px 8px rgba(255,92,138,0.2);
+}
+
+/* ── Notificación flotante de chat ───────────────────────── */
+.chat-notif-popup {
+  position: fixed; bottom: 80px; right: 18px; z-index: 9990;
+  max-width: 300px; cursor: none;
+}
+.chat-notif-inner {
+  background: var(--black-soft); color: white;
+  padding: 14px 18px; border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); border: 1px solid rgba(255,179,193,0.3);
+}
+.chat-notif-inner:hover { background: #2a1020; }
+.chat-notif-from { font-size: 11px; opacity: 0.7; margin-bottom: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+.chat-notif-preview { font-family: var(--font-display); font-size: 13px; color: var(--rose-soft); line-height: 1.4; }
+
+/* ── Banner recordatorio diario ──────────────────────────── */
+.daily-reminder-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 800;
+  padding: 0 16px;
+}
+.reminder-inner {
+  max-width: 680px; margin: 8px auto 0;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(255,220,230,0.96), rgba(255,200,221,0.92));
+  backdrop-filter: blur(12px); border-radius: 0 0 var(--radius-md) var(--radius-md);
+  padding: 12px 20px; box-shadow: var(--shadow-md);
+  border: 1px solid rgba(255,133,161,0.3); border-top: none;
+}
+.reminder-icon { font-size: 22px; flex-shrink: 0; }
+.reminder-msg { flex: 1; font-family: var(--font-display); font-style: italic; font-size: 14px; color: var(--black-soft); }
+.reminder-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.reminder-go {
+  padding: 6px 16px; border-radius: 20px; border: none;
+  background: var(--pink-accent); color: white; font-size: 13px;
+  cursor: none; font-family: var(--font-body); font-weight: 600;
+  transition: transform 0.2s;
+}
+.reminder-go:hover { transform: scale(1.05); }
+.reminder-dismiss {
+  padding: 6px 10px; border-radius: 20px; border: 1.5px solid var(--pink-300);
+  background: transparent; color: var(--charcoal); font-size: 13px;
+  cursor: none; font-family: var(--font-body); transition: all 0.2s;
+}
+.reminder-dismiss:hover { background: rgba(255,133,161,0.1); }
+
+/* ── Recordatorio configuración ──────────────────────────── */
+.reminder-setup {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 10px;
+}
+.reminder-time-input {
+  padding: 10px 14px; border: 1.5px solid var(--pink-200);
+  border-radius: var(--radius-sm); font-family: var(--font-body);
+  font-size: 16px; color: var(--black-soft); background: rgba(255,255,255,0.7);
+  outline: none; cursor: none; transition: border-color 0.2s;
+}
+.reminder-time-input:focus { border-color: var(--pink-accent); }
+

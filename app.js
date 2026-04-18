@@ -28,12 +28,14 @@ const LIZ_MAIN    = () => doc(db, 'jardin_alison', 'alison_data');
 const ENTRIES_COL = () => collection(db, 'jardin_alison', 'alison_data', 'entries');
 const BUZZON_COL  = () => collection(db, 'jardin_alison', 'alison_data', 'buzzon');
 const MOODS_COL   = () => collection(db, 'jardin_alison', 'alison_data', 'daily_moods');
-// 🆕 Respuestas de Alison a Dani — llegan al área protegida de Dani
 const ALISON_BUZZON_COL = () => collection(db, 'jardin_alison', 'alison_data', 'alison_replies');
+// 🆕 Chat en tiempo real Dani ↔ Alison
+const LIVE_CHAT_COL = () => collection(db, 'jardin_alison', 'alison_data', 'live_chat');
 const ENTRY_DOC         = (id) => doc(db, 'jardin_alison', 'alison_data', 'entries', String(id));
 const BUZZON_DOC        = (id) => doc(db, 'jardin_alison', 'alison_data', 'buzzon',  String(id));
 const MOOD_DOC          = (dateStr) => doc(db, 'jardin_alison', 'alison_data', 'daily_moods', dateStr);
 const ALISON_REPLY_DOC  = (id) => doc(db, 'jardin_alison', 'alison_data', 'alison_replies', String(id));
+const CHAT_MSG_DOC      = (id) => doc(db, 'jardin_alison', 'alison_data', 'live_chat', String(id));
 
 // ── Escritura en la nube ────────────────────────────────────
 async function cloudSaveMain(data) {
@@ -65,6 +67,22 @@ async function cloudSaveAlisonReply(reply) {
 async function cloudDeleteAlisonReply(id) {
   try { await deleteDoc(ALISON_REPLY_DOC(id)); }
   catch(e) { console.error('cloudDeleteAlisonReply:', e); }
+}
+
+// 🆕 Chat en tiempo real
+async function cloudSendChatMsg(msg) {
+  try { await setDoc(CHAT_MSG_DOC(msg.id), msg); }
+  catch(e) { console.error('cloudSendChatMsg:', e); }
+}
+async function cloudDeleteChatMsg(id) {
+  try { await deleteDoc(CHAT_MSG_DOC(id)); }
+  catch(e) { console.error('cloudDeleteChatMsg:', e); }
+}
+async function cloudReactToMsg(id, collection_name, reactions) {
+  try {
+    if (collection_name === 'buzzon') await updateDoc(BUZZON_DOC(id), { reactions });
+    else if (collection_name === 'live_chat') await updateDoc(CHAT_MSG_DOC(id), { reactions });
+  } catch(e) { console.error('cloudReactToMsg:', e); }
 }
 
 // 🆕 Eliminar un mood del día desde Firestore (sobreescribe el array de moods)
@@ -183,6 +201,23 @@ function startRealtimeSync() {
     updateAlisonReplyBadge();
     if (document.getElementById('dpanel-write-dani')?.classList.contains('active')) renderAlisonReplies();
   });
+
+  // 🆕 Chat en tiempo real Dani ↔ Alison
+  onSnapshot(query(LIVE_CHAT_COL(), orderBy('date', 'asc')), (snap) => {
+    const prev = state.liveChat || [];
+    state.liveChat = snap.docs.map(d => d.data());
+    // Notificación de nuevo mensaje si el chat no está activo
+    if (state.liveChat.length > prev.length) {
+      const newMsg = state.liveChat[state.liveChat.length - 1];
+      const chatOpen = document.getElementById('dpanel-livechat')?.classList.contains('active');
+      if (!chatOpen && newMsg) {
+        showChatNotification(newMsg);
+        playNotificationSound();
+      }
+      updateChatBadge();
+    }
+    if (document.getElementById('dpanel-livechat')?.classList.contains('active')) renderLiveChat();
+  });
 }
 
 function _restoreMoodUI() {
@@ -293,7 +328,8 @@ const defaultState = {
   today: { mood:null, moodEmoji:null, scale:7, motivationalMsg:null, confirmed:false, date:null, moodsToday:[] },
   buzzon: [], chatHistory: [], capsules: [], achievements: {}, calendarMonth: null,
   dailyMoods: [],
-  alisonReplies: [] // 🆕 respuestas de Alison a Dani
+  alisonReplies: [], // 🆕 respuestas de Alison a Dani
+  liveChat: []       // 🆕 chat en tiempo real
 };
 let state        = JSON.parse(JSON.stringify(defaultState));
 let selectedMood = null;
@@ -1062,11 +1098,12 @@ document.querySelectorAll('.dani-tab').forEach(tab => {
     if(target==='buzzon') { renderBuzzon(); updateUnreadBadge(); }
     if(target==='write-dani') setTimeout(initPinLock, 50);
     if(target==='alison-reply') { renderAlisonReplies(); updateAlisonReplyBadge(); }
+    if(target==='livechat') { renderLiveChat(); updateChatBadge(); }
     gsap.fromTo(panel,{opacity:0,y:12},{opacity:1,y:0,duration:0.35,ease:'power2.out'});
   });
 });
 
-function initDaniTab(){ updateAIContextPill(); updateUnreadBadge(); updateAlisonReplyBadge(); renderBuzzon(); }
+function initDaniTab(){ updateAIContextPill(); updateUnreadBadge(); updateAlisonReplyBadge(); updateChatBadge(); renderBuzzon(); }
 
 function updateAIContextPill(){
   const pill=document.getElementById('ai-context-text');
@@ -1084,6 +1121,272 @@ function updateAlisonReplyBadge() {
   if (!badge) return;
   if (unread > 0) { badge.textContent = unread; badge.style.display = 'flex'; }
   else badge.style.display = 'none';
+}
+
+// ============================================================
+//  🆕 CHAT EN TIEMPO REAL DANI ↔ ALISON
+// ============================================================
+let chatSender = 'alison'; // 'alison' o 'dani' — se determina por sesión
+
+function updateChatBadge() {
+  const unread = (state.liveChat||[]).filter(m => !m.read && m.from !== chatSender).length;
+  const badge = document.getElementById('chat-live-badge');
+  if (!badge) return;
+  badge.textContent = unread;
+  badge.style.display = unread > 0 ? 'flex' : 'none';
+}
+
+function renderLiveChat() {
+  const container = document.getElementById('live-chat-messages');
+  if (!container) return;
+  const msgs = state.liveChat || [];
+  if (msgs.length === 0) {
+    container.innerHTML = `<div class="lc-empty"><span>💌</span><p>¡Empiecen a escribirse! Este es su espacio especial</p></div>`;
+    return;
+  }
+  // Renderizar solo mensajes nuevos para evitar parpadeo
+  const existingIds = new Set([...container.querySelectorAll('[data-msg-id]')].map(el => el.dataset.msgId));
+  let lastDate = '';
+  msgs.forEach((msg, i) => {
+    const msgDate = new Date(msg.date).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+    // Separador de fecha
+    if (msgDate !== lastDate && !existingIds.has(msg.id+'_date')) {
+      const sep = document.createElement('div');
+      sep.className = 'lc-date-sep';
+      sep.dataset.msgId = msg.id+'_date';
+      sep.textContent = msgDate;
+      container.appendChild(sep);
+      lastDate = msgDate;
+    } else { lastDate = msgDate; }
+    if (existingIds.has(String(msg.id))) return; // ya existe
+    const isMe = msg.from === chatSender;
+    const el = document.createElement('div');
+    el.className = `lc-msg ${isMe ? 'lc-msg-me' : 'lc-msg-them'}`;
+    el.dataset.msgId = msg.id;
+    const timeStr = new Date(msg.date).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    // Reacciones
+    const reactions = msg.reactions || {};
+    const REACTION_OPTIONS = ['💕','🥰','😂','😮','🌸','💙'];
+    const reactionsHTML = Object.entries(reactions).map(([emoji, users]) =>
+      users.length ? `<span class="lc-reaction ${users.includes(chatSender)?'lc-reaction-mine':''}" data-emoji="${emoji}" data-id="${msg.id}">${emoji} ${users.length}</span>` : ''
+    ).join('');
+    el.innerHTML = `
+      <div class="lc-bubble">
+        <div class="lc-sender">${msg.from === 'dani' ? '💌 Dani' : '🌸 Alison'}</div>
+        <div class="lc-text">${msg.text.replace(/\n/g,'<br>')}</div>
+        <div class="lc-meta">
+          <span class="lc-time">${timeStr}</span>
+          ${isMe ? `<span class="lc-read">${msg.read ? '✓✓' : '✓'}</span>` : ''}
+        </div>
+        ${reactionsHTML ? `<div class="lc-reactions-bar">${reactionsHTML}</div>` : ''}
+      </div>
+      <div class="lc-react-btn" title="Reaccionar">+</div>
+      <div class="lc-react-picker" style="display:none">
+        ${REACTION_OPTIONS.map(e => `<button class="lc-react-opt" data-emoji="${e}" data-id="${msg.id}">${e}</button>`).join('')}
+      </div>`;
+    container.appendChild(el);
+    gsap.fromTo(el, {opacity:0, y:8, scale:0.97}, {opacity:1, y:0, scale:1, duration:0.3, ease:'power2.out'});
+  });
+  // Marcar como leídos los mensajes de la otra persona
+  msgs.forEach(msg => {
+    if (msg.from !== chatSender && !msg.read) {
+      cloudReactToMsg(msg.id, 'live_chat_read', null);
+      updateDoc(CHAT_MSG_DOC(msg.id), { read: true }).catch(()=>{});
+    }
+  });
+  // Scroll al fondo solo si el usuario está cerca del fondo
+  const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+  if (isNearBottom || msgs.length === 1) container.scrollTop = container.scrollHeight;
+  updateChatBadge();
+  bindChatReactions(container);
+}
+
+function bindChatReactions(container) {
+  container.querySelectorAll('.lc-react-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const msgEl = btn.closest('.lc-msg');
+      const picker = msgEl?.querySelector('.lc-react-picker');
+      if (!picker) return;
+      document.querySelectorAll('.lc-react-picker').forEach(p => { if(p!==picker) p.style.display='none'; });
+      picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex';
+    };
+  });
+  container.querySelectorAll('.lc-react-opt').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const emoji = btn.dataset.emoji;
+      const msgId = btn.dataset.id;
+      const msg = state.liveChat.find(m => String(m.id) === String(msgId));
+      if (!msg) return;
+      const reactions = msg.reactions || {};
+      if (!reactions[emoji]) reactions[emoji] = [];
+      const idx = reactions[emoji].indexOf(chatSender);
+      if (idx >= 0) reactions[emoji].splice(idx, 1);
+      else reactions[emoji].push(chatSender);
+      await cloudReactToMsg(msgId, 'live_chat', reactions);
+      btn.closest('.lc-react-picker').style.display = 'none';
+    };
+  });
+  container.querySelectorAll('.lc-reaction').forEach(span => {
+    span.onclick = async (e) => {
+      e.stopPropagation();
+      const emoji = span.dataset.emoji;
+      const msgId = span.dataset.id;
+      const msg = state.liveChat.find(m => String(m.id) === String(msgId));
+      if (!msg) return;
+      const reactions = msg.reactions || {};
+      if (!reactions[emoji]) reactions[emoji] = [];
+      const idx = reactions[emoji].indexOf(chatSender);
+      if (idx >= 0) reactions[emoji].splice(idx, 1);
+      else reactions[emoji].push(chatSender);
+      await cloudReactToMsg(msgId, 'live_chat', reactions);
+    };
+  });
+  // Cerrar pickers al click fuera
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.lc-react-picker').forEach(p => p.style.display='none');
+  }, { once: true });
+}
+
+async function sendLiveChatMsg() {
+  const input = document.getElementById('live-chat-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  const msg = {
+    id: Date.now(),
+    from: chatSender,
+    text,
+    date: new Date().toISOString(),
+    read: false,
+    reactions: {}
+  };
+  await cloudSendChatMsg(msg);
+}
+
+// Notificación flotante de mensaje nuevo
+function showChatNotification(msg) {
+  const from = msg.from === 'dani' ? '💌 Dani' : '🌸 Alison';
+  const notif = document.createElement('div');
+  notif.className = 'chat-notif-popup';
+  notif.innerHTML = `
+    <div class="chat-notif-inner">
+      <div class="chat-notif-from">${from} te escribió</div>
+      <div class="chat-notif-preview">${msg.text.substring(0,60)}${msg.text.length>60?'...':''}</div>
+    </div>`;
+  document.body.appendChild(notif);
+  gsap.fromTo(notif, {x: 120, opacity:0}, {x:0, opacity:1, duration:0.45, ease:'back.out(1.7)'});
+  notif.addEventListener('click', () => {
+    notif.remove();
+    // Navegar al chat
+    document.querySelector('[data-tab="dani"]')?.click();
+    setTimeout(() => document.querySelector('[data-dtab="livechat"]')?.click(), 300);
+  });
+  setTimeout(() => gsap.to(notif, {x:120, opacity:0, duration:0.35, onComplete:()=>notif.remove()}), 4500);
+}
+
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    o.start(); o.stop(ctx.currentTime + 0.35);
+  } catch(e) {}
+}
+
+// ============================================================
+//  🆕 NOTIFICACIONES EMOCIONALES
+// ============================================================
+function initEmotionNotifications() {
+  // Pedir permiso de notificaciones del sistema
+  if ('Notification' in window && Notification.permission === 'default') {
+    setTimeout(() => Notification.requestPermission(), 3000);
+  }
+  // Banner "hoy no has escrito" — revisa cada vez que se carga
+  checkDailyWritingReminder();
+  // Recordatorio programado — revisar cada minuto
+  setInterval(checkScheduledReminder, 60000);
+  checkScheduledReminder();
+}
+
+function checkDailyWritingReminder() {
+  const today = todayStr();
+  const lastDismiss = localStorage.getItem('alison_reminder_dismissed');
+  if (lastDismiss === today) return; // ya se descartó hoy
+  // Esperar 8 segundos para revisar si tiene entrada de hoy
+  setTimeout(() => {
+    const hasEntryToday = state.entries.some(e => {
+      const d = new Date(e.date);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` === today;
+    });
+    const hasMoodToday = state.today.confirmed || (state.dailyMoods||[]).some(m => m.date === today);
+    if (!hasEntryToday && !hasMoodToday) {
+      showDailyReminder();
+    }
+  }, 8000);
+}
+
+function showDailyReminder() {
+  const existing = document.getElementById('daily-reminder-banner');
+  if (existing) return;
+  const hours = new Date().getHours();
+  let msg = '¿Cómo te sientes hoy, amor? 🌸 Aún no has escrito en tu jardín';
+  if (hours < 12) msg = '¡Buenos días! 🌅 Tu jardín te espera — ¿cómo empezó tu día?';
+  else if (hours < 18) msg = '🌸 Hoy no has escrito aún — ¿qué te está rondando en el corazón?';
+  else msg = '🌙 Antes de dormir, ¿nos cuentas cómo estuvo tu día?';
+  const banner = document.createElement('div');
+  banner.id = 'daily-reminder-banner';
+  banner.className = 'daily-reminder-banner';
+  banner.innerHTML = `
+    <div class="reminder-inner">
+      <span class="reminder-icon">🌸</span>
+      <span class="reminder-msg">${msg}</span>
+      <div class="reminder-actions">
+        <button class="reminder-go" id="reminder-go-btn">Escribir ahora</button>
+        <button class="reminder-dismiss" id="reminder-dismiss-btn">✕</button>
+      </div>
+    </div>`;
+  document.body.appendChild(banner);
+  gsap.fromTo(banner, {y:-80, opacity:0}, {y:0, opacity:1, duration:0.5, ease:'back.out(1.7)', delay:0.5});
+  document.getElementById('reminder-go-btn')?.addEventListener('click', () => {
+    banner.remove();
+    document.querySelector('[data-tab="diary"]')?.click();
+    setTimeout(() => document.getElementById('diary-text')?.focus(), 400);
+  });
+  document.getElementById('reminder-dismiss-btn')?.addEventListener('click', () => {
+    localStorage.setItem('alison_reminder_dismissed', todayStr());
+    gsap.to(banner, {y:-80, opacity:0, duration:0.35, onComplete:()=>banner.remove()});
+  });
+  // Notificación del sistema si la página no está visible
+  if (document.hidden && Notification.permission === 'granted') {
+    new Notification('Mi Jardín de Alison 🌸', { body: msg, icon: '🌸' });
+  }
+}
+
+function checkScheduledReminder() {
+  const reminderTime = localStorage.getItem('alison_reminder_time'); // formato "HH:MM"
+  if (!reminderTime) return;
+  const [hh, mm] = reminderTime.split(':').map(Number);
+  const now = new Date();
+  if (now.getHours() === hh && now.getMinutes() === mm) {
+    const lastFired = localStorage.getItem('alison_reminder_last_fired');
+    if (lastFired === todayStr()) return;
+    localStorage.setItem('alison_reminder_last_fired', todayStr());
+    showDailyReminder();
+  }
+}
+
+function saveReminderTime(time) {
+  if (time) localStorage.setItem('alison_reminder_time', time);
+  else localStorage.removeItem('alison_reminder_time');
+  showToast(time ? `⏰ Recordatorio configurado a las ${time} 🌸` : 'Recordatorio desactivado', true);
 }
 
 // 🆕 Alison envía respuesta a Dani
@@ -1351,6 +1654,41 @@ function openLetterModal(msg){
     document.getElementById('letter-modal-title').textContent = msg.title;
     document.getElementById('letter-modal-date').textContent  = formatDate(msg.date);
     document.getElementById('letter-modal-body').textContent  = msg.body;
+
+    // Reacciones en el buzón
+    const reactBar = document.getElementById('letter-reactions-bar');
+    if (reactBar) {
+      const REACTION_OPTIONS = ['💕','🥰','😭','😂','🌸','💙','🔥','✨'];
+      const reactions = msg.reactions || {};
+      const existingHTML = REACTION_OPTIONS.map(e => {
+        const users = reactions[e]||[];
+        const active = users.includes('alison');
+        return `<button class="letter-react-btn ${active?'active':''}" data-emoji="${e}" data-id="${msg.id}">${e}${users.length?` <span>${users.length}</span>`:''}</button>`;
+      }).join('');
+      reactBar.innerHTML = existingHTML;
+      reactBar.querySelectorAll('.letter-react-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const emoji = btn.dataset.emoji;
+          const reactions = msg.reactions || {};
+          if (!reactions[emoji]) reactions[emoji] = [];
+          const idx = reactions[emoji].indexOf('alison');
+          if (idx >= 0) reactions[emoji].splice(idx,1);
+          else reactions[emoji].push('alison');
+          msg.reactions = reactions;
+          await cloudReactToMsg(msg.id, 'buzzon', reactions);
+          btn.classList.toggle('active', reactions[emoji].includes('alison'));
+          const countSpan = btn.querySelector('span');
+          if (reactions[emoji].length > 0) {
+            if (countSpan) countSpan.textContent = reactions[emoji].length;
+            else btn.innerHTML = `${emoji} <span>${reactions[emoji].length}</span>`;
+          } else {
+            btn.innerHTML = emoji;
+          }
+          gsap.fromTo(btn, {scale:0.8}, {scale:1, duration:0.2, ease:'back.out(2)'});
+        });
+      });
+    }
+
     letterContent.style.display='block';
     if(!msg.read) await cloudUpdateBuzzon(msg.id, { read: true });
   },1000);
@@ -1746,6 +2084,44 @@ function runInit() {
   document.getElementById('alison-reply-modal')?.addEventListener('click', e => {
     if(e.target===e.currentTarget) e.currentTarget.style.display='none';
   });
+
+  // 🆕 Chat en tiempo real — enviar mensaje
+  const lcInput = document.getElementById('live-chat-input');
+  const lcSend  = document.getElementById('live-chat-send');
+  if (lcSend)  lcSend.addEventListener('click', sendLiveChatMsg);
+  if (lcInput) lcInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendLiveChatMsg(); }
+  });
+
+  // Toggle sender (Alison / Dani) en el chat — Dani usa el mismo PIN de sesión
+  document.getElementById('chat-sender-toggle')?.addEventListener('click', () => {
+    if (pinSession) {
+      chatSender = chatSender === 'alison' ? 'dani' : 'alison';
+    } else {
+      chatSender = 'alison';
+    }
+    updateChatSenderUI();
+    renderLiveChat();
+  });
+
+  // 🆕 Recordatorio — guardar hora
+  document.getElementById('reminder-time-save')?.addEventListener('click', () => {
+    const val = document.getElementById('reminder-time-input')?.value;
+    saveReminderTime(val);
+  });
+  document.getElementById('reminder-time-clear')?.addEventListener('click', () => {
+    saveReminderTime(null);
+    const input = document.getElementById('reminder-time-input');
+    if(input) input.value = '';
+  });
+
+  // 🆕 Notificaciones emocionales
+  const savedReminderTime = localStorage.getItem('alison_reminder_time');
+  if (savedReminderTime) {
+    const rInput = document.getElementById('reminder-time-input');
+    if(rInput) rInput.value = savedReminderTime;
+  }
+  setTimeout(initEmotionNotifications, 2000);
 }
 
 if (document.readyState === 'loading') {
@@ -1783,6 +2159,8 @@ function updatePinDots(){
 
 function pinSuccess(){
   pinSession=true;
+  chatSender='dani'; // Dani autenticado
+  updateChatSenderUI();
   const card=document.querySelector('.pin-card');
   const overlay=document.createElement('div'); overlay.className='pin-success-overlay';
   overlay.innerHTML='<div class="pin-success-icon">💌</div>';
@@ -1793,6 +2171,15 @@ function pinSuccess(){
     overlay.remove();
     showToast('¡Bienvenido, Dani! 💕 Escríbele con amor a Alison',true);
   },900);
+}
+
+function updateChatSenderUI() {
+  const toggle = document.getElementById('chat-sender-toggle');
+  const label  = document.getElementById('chat-sender-label');
+  if (toggle) toggle.textContent = chatSender === 'dani' ? '🔄 Cambiar a Alison' : '🔄 Cambiar a Dani';
+  if (label)  label.innerHTML = chatSender === 'dani'
+    ? '<span style="color:var(--pink-accent)">💌 Escribiendo como <strong>Dani</strong></span>'
+    : '<span style="color:var(--pink-accent)">🌸 Escribiendo como <strong>Alison</strong></span>';
 }
 
 function pinFailure(){
