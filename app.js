@@ -819,84 +819,435 @@ function openEntryModal(entry) {
 document.getElementById('modal-close').addEventListener('click',()=>{ document.getElementById('entry-modal').style.display='none'; });
 document.getElementById('entry-modal').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.style.display='none'; });
 
-// ===================== CANVAS =====================
+// ===================== CANVAS — ESTUDIO DE ARTE =====================
 const canvas = document.getElementById('drawing-canvas');
 const ctx    = canvas.getContext('2d');
-let isDrawing=false,currentTool='pen',currentColor='#FFB3C1',brushSize=5,lastX=0,lastY=0;
-ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-function getPos(e) {
-  const rect=canvas.getBoundingClientRect();
-  const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
-  if(e.touches) return{x:(e.touches[0].clientX-rect.left)*sx,y:(e.touches[0].clientY-rect.top)*sy};
-  return{x:(e.clientX-rect.left)*sx,y:(e.clientY-rect.top)*sy};
+// Estado del paint
+let paintState = {
+  tool: 'pen', brushType: 'round', color: '#FFB3C1',
+  size: 5, opacity: 1.0,
+  isDrawing: false, startX: 0, startY: 0, lastX: 0, lastY: 0,
+  stamp: '🌸', stampSize: 32,
+  textInput: '', textFont: "'Playfair Display', serif",
+  shapeFilled: false,
+};
+let undoStack = [], redoStack = [];
+let snapshotBeforeStroke = null;
+
+// Inicializar canvas blanco
+ctx.fillStyle = '#FFFFFF';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+pushUndo();
+
+// Paleta completa de colores
+const FULL_PALETTE = [
+  // Blancos/Grises
+  '#FFFFFF','#F5F5F5','#D4D4D4','#9E9E9E','#616161','#212121',
+  // Negros/Marrones
+  '#1a0a0f','#3E2723','#795548','#A1887F','#D7CCC8',
+  // Rojos
+  '#FF1744','#F44336','#EF5350','#FF8A80','#FFCDD2',
+  // Rosas/Fucsias
+  '#FF4081','#F50057','#FF69B4','#FFB3C1','#FF85A1','#FFC8DD',
+  // Naranjas
+  '#FF6D00','#FF9100','#FF6F00','#FFA726','#FFB74D','#FFE0B2',
+  // Amarillos
+  '#FFD600','#FFFF00','#FFF176','#FFF9C4','#FFEE58',
+  // Verdes
+  '#00C853','#4CAF50','#66BB6A','#A5D6A7','#C8E6C9',
+  '#00BFA5','#26A69A','#80CBC4','#B2DFDB',
+  // Azules
+  '#0091EA','#1565C0','#42A5F5','#90CAF9','#BBDEFB','#BDE0FE',
+  '#A2D2FF',
+  // Lilas/Morados
+  '#AA00FF','#7B1FA2','#AB47BC','#CE93D8','#CDB4DB','#E8C4DE',
+  // Cyans
+  '#00B0FF','#00E5FF','#80DEEA','#B2EBF2',
+];
+
+function buildColorPalette() {
+  const grid = document.getElementById('color-palette-full');
+  if (!grid) return;
+  grid.innerHTML = '';
+  FULL_PALETTE.forEach(hex => {
+    const btn = document.createElement('button');
+    btn.className = 'pt-color-swatch';
+    btn.style.background = hex;
+    btn.dataset.color = hex;
+    btn.title = hex;
+    if (hex === paintState.color) btn.classList.add('active');
+    btn.addEventListener('click', () => selectColor(hex));
+    grid.appendChild(btn);
+  });
+  updateCurrentColorPreview();
 }
-canvas.addEventListener('mousedown',startDraw); canvas.addEventListener('mousemove',draw);
-canvas.addEventListener('mouseup',endDraw);     canvas.addEventListener('mouseleave',endDraw);
-canvas.addEventListener('touchstart',e=>{e.preventDefault();startDraw(e);},{passive:false});
-canvas.addEventListener('touchmove', e=>{e.preventDefault();draw(e);},{passive:false});
-canvas.addEventListener('touchend',endDraw);
 
-function startDraw(e){isDrawing=true;const p=getPos(e);lastX=p.x;lastY=p.y;if(currentTool==='fill'){fillCanvas(currentColor);isDrawing=false;}}
-function draw(e){if(!isDrawing||currentTool==='fill')return;const p=getPos(e);ctx.beginPath();ctx.moveTo(lastX,lastY);ctx.lineTo(p.x,p.y);ctx.strokeStyle=currentTool==='eraser'?'#FFFFFF':currentColor;ctx.lineWidth=currentTool==='eraser'?brushSize*3:brushSize;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();lastX=p.x;lastY=p.y;}
-function endDraw(){isDrawing=false;}
-function fillCanvas(color){ctx.fillStyle=color;ctx.fillRect(0,0,canvas.width,canvas.height);}
+function selectColor(hex) {
+  paintState.color = hex;
+  document.querySelectorAll('.pt-color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === hex));
+  const ci = document.getElementById('custom-color');
+  if (ci) ci.value = hex;
+  updateCurrentColorPreview();
+  addRecentColor(hex);
+}
 
-document.getElementById('tool-pen').addEventListener('click',()=>setTool('pen'));
-document.getElementById('tool-eraser').addEventListener('click',()=>setTool('eraser'));
-document.getElementById('tool-fill').addEventListener('click',()=>setTool('fill'));
-function setTool(tool){currentTool=tool;document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));document.getElementById('tool-'+tool).classList.add('active');}
+let recentColors = [];
+function addRecentColor(hex) {
+  recentColors = [hex, ...recentColors.filter(c => c !== hex)].slice(0, 8);
+  renderRecentColors();
+}
+function renderRecentColors() {
+  const el = document.getElementById('color-recent');
+  if (!el) return;
+  el.innerHTML = '';
+  recentColors.forEach(hex => {
+    const btn = document.createElement('button');
+    btn.className = 'pt-color-swatch';
+    btn.style.background = hex;
+    btn.dataset.color = hex;
+    btn.addEventListener('click', () => selectColor(hex));
+    el.appendChild(btn);
+  });
+}
+function updateCurrentColorPreview() {
+  const p = document.getElementById('current-color-preview');
+  if (p) p.style.background = paintState.color;
+}
 
-document.querySelectorAll('.color-swatch').forEach(sw=>{
-  sw.addEventListener('click',()=>{document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));sw.classList.add('active');currentColor=sw.dataset.color;document.getElementById('custom-color').value=currentColor;});
+// Historial deshacer/rehacer
+function pushUndo() {
+  undoStack.push(canvas.toDataURL());
+  if (undoStack.length > 30) undoStack.shift();
+  redoStack = [];
+}
+function undo() {
+  if (undoStack.length < 2) return;
+  redoStack.push(undoStack.pop());
+  const img = new Image();
+  img.onload = () => { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
+  img.src = undoStack[undoStack.length-1];
+}
+function redo() {
+  if (!redoStack.length) return;
+  const state_img = redoStack.pop();
+  undoStack.push(state_img);
+  const img = new Image();
+  img.onload = () => { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0); };
+  img.src = state_img;
+}
+
+// Posición en canvas
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+  if (e.touches) return { x:(e.touches[0].clientX-rect.left)*sx, y:(e.touches[0].clientY-rect.top)*sy };
+  return { x:(e.clientX-rect.left)*sx, y:(e.clientY-rect.top)*sy };
+}
+
+// Configurar contexto
+function applyCtxStyle(forStroke=true) {
+  ctx.globalAlpha = paintState.opacity;
+  if (forStroke) {
+    ctx.strokeStyle = paintState.color;
+    ctx.lineWidth   = paintState.size;
+    ctx.lineCap     = paintState.brushType === 'square' ? 'square' : 'round';
+    ctx.lineJoin    = 'round';
+  }
+  ctx.fillStyle = paintState.color;
+}
+
+// ── EVENTOS DEL CANVAS ─────────────────────────────────────
+canvas.addEventListener('mousedown', e => { startDraw(e); });
+canvas.addEventListener('mousemove', e => { onDraw(e); });
+canvas.addEventListener('mouseup',   e => { endDraw(e); });
+canvas.addEventListener('mouseleave',e => { endDraw(e); });
+canvas.addEventListener('touchstart', e=>{e.preventDefault();startDraw(e);},{passive:false});
+canvas.addEventListener('touchmove',  e=>{e.preventDefault();onDraw(e);},{passive:false});
+canvas.addEventListener('touchend',   e=>{endDraw(e);});
+
+function startDraw(e) {
+  const p = getPos(e);
+  paintState.isDrawing = true;
+  paintState.startX = paintState.lastX = p.x;
+  paintState.startY = paintState.lastY = p.y;
+  snapshotBeforeStroke = ctx.getImageData(0,0,canvas.width,canvas.height);
+
+  const tool = paintState.tool;
+  if (tool === 'fill') {
+    floodFill(Math.round(p.x), Math.round(p.y), paintState.color);
+    pushUndo();
+    paintState.isDrawing = false;
+  } else if (tool === 'stamp') {
+    drawStamp(p.x, p.y);
+    pushUndo();
+    paintState.isDrawing = false;
+  } else if (tool === 'text') {
+    drawTextTool(p.x, p.y);
+    pushUndo();
+    paintState.isDrawing = false;
+  } else if (tool === 'pen' || tool === 'brush' || tool === 'eraser') {
+    applyCtxStyle();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+}
+
+function onDraw(e) {
+  if (!paintState.isDrawing) return;
+  const p = getPos(e);
+  const tool = paintState.tool;
+
+  if (tool === 'pen' || tool === 'brush') {
+    applyCtxStyle();
+    if (tool === 'brush') {
+      // Pincel suave con shadowBlur
+      ctx.shadowColor = paintState.color;
+      ctx.shadowBlur  = paintState.size * 0.8;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+    if (paintState.brushType === 'callig') {
+      ctx.lineWidth = Math.max(1, paintState.size * Math.abs(Math.sin((p.x - paintState.lastX) * 0.1 + 0.5)));
+    }
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    paintState.lastX = p.x; paintState.lastY = p.y;
+  } else if (tool === 'spray') {
+    drawSpray(p.x, p.y);
+    paintState.lastX = p.x; paintState.lastY = p.y;
+  } else if (tool === 'eraser') {
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth   = paintState.size * 3;
+    ctx.lineCap     = 'round';
+    ctx.shadowBlur  = 0;
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    paintState.lastX = p.x; paintState.lastY = p.y;
+  } else if (tool === 'line' || tool === 'rect' || tool === 'circle') {
+    // Preview en tiempo real
+    ctx.putImageData(snapshotBeforeStroke, 0, 0);
+    applyCtxStyle();
+    ctx.shadowBlur = 0;
+    if (tool === 'line') {
+      ctx.beginPath(); ctx.moveTo(paintState.startX, paintState.startY);
+      ctx.lineTo(p.x, p.y); ctx.stroke();
+    } else if (tool === 'rect') {
+      const w = p.x - paintState.startX, h = p.y - paintState.startY;
+      if (paintState.shapeFilled) ctx.fillRect(paintState.startX, paintState.startY, w, h);
+      else ctx.strokeRect(paintState.startX, paintState.startY, w, h);
+    } else if (tool === 'circle') {
+      const rx = Math.abs(p.x - paintState.startX)/2, ry = Math.abs(p.y - paintState.startY)/2;
+      const cx = paintState.startX + (p.x - paintState.startX)/2;
+      const cy = paintState.startY + (p.y - paintState.startY)/2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+      if (paintState.shapeFilled) ctx.fill(); else ctx.stroke();
+    }
+    paintState.lastX = p.x; paintState.lastY = p.y;
+  }
+}
+
+function endDraw(e) {
+  if (!paintState.isDrawing) return;
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  paintState.isDrawing = false;
+  pushUndo();
+}
+
+function drawSpray(x, y) {
+  applyCtxStyle(false);
+  ctx.globalAlpha = 0.05;
+  const density = paintState.size * 3;
+  const radius  = paintState.size * 4;
+  for (let i = 0; i < density; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const r     = Math.random() * radius;
+    ctx.beginPath();
+    ctx.arc(x + r * Math.cos(angle), y + r * Math.sin(angle), 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = paintState.opacity;
+}
+
+function drawStamp(x, y) {
+  ctx.globalAlpha = paintState.opacity;
+  ctx.font = `${paintState.stampSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(paintState.stamp, x, y);
+  ctx.globalAlpha = 1;
+}
+
+function drawTextTool(x, y) {
+  const text = document.getElementById('text-input')?.value || 'Texto';
+  if (!text.trim()) return;
+  ctx.globalAlpha = paintState.opacity;
+  ctx.font        = `${paintState.size * 4 + 12}px ${paintState.textFont}`;
+  ctx.fillStyle   = paintState.color;
+  ctx.textAlign   = 'left';
+  ctx.textBaseline= 'top';
+  ctx.fillText(text, x, y);
+  ctx.globalAlpha = 1;
+}
+
+// Flood fill simple
+function floodFill(startX, startY, fillColorHex) {
+  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const data = imageData.data;
+  const idx  = (startY * canvas.width + startX) * 4;
+  const sr = data[idx], sg = data[idx+1], sb = data[idx+2], sa = data[idx+3];
+  const [fr, fg, fb] = hexToRgb(fillColorHex);
+  if (sr===fr && sg===fg && sb===fb) return;
+  const queue = [[startX, startY]];
+  const visited = new Uint8Array(canvas.width * canvas.height);
+  while (queue.length) {
+    const [x, y] = queue.shift();
+    if (x<0||x>=canvas.width||y<0||y>=canvas.height) continue;
+    const i = (y*canvas.width+x)*4;
+    if (visited[y*canvas.width+x]) continue;
+    if (Math.abs(data[i]-sr)>30||Math.abs(data[i+1]-sg)>30||Math.abs(data[i+2]-sb)>30) continue;
+    visited[y*canvas.width+x] = 1;
+    data[i]=fr; data[i+1]=fg; data[i+2]=fb; data[i+3]=255;
+    queue.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+  ctx.putImageData(imageData,0,0);
+}
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+
+// ── CONTROLES DE HERRAMIENTA ───────────────────────────────
+function setTool(tool) {
+  paintState.tool = tool;
+  document.querySelectorAll('.pt-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tool-'+tool)?.classList.add('active');
+  // Mostrar/ocultar paneles laterales
+  document.getElementById('stamp-section').style.display  = tool==='stamp'  ? 'block' : 'none';
+  document.getElementById('text-section').style.display   = tool==='text'   ? 'block' : 'none';
+  document.getElementById('shape-section').style.display  = (tool==='rect'||tool==='circle') ? 'block' : 'none';
+  // Cursor del canvas
+  canvas.style.cursor = tool==='eraser' ? 'cell' : tool==='fill' ? 'crosshair' : tool==='text' ? 'text' : 'crosshair';
+}
+
+['pen','brush','spray','line','rect','circle','text','stamp','fill','eraser'].forEach(t => {
+  document.getElementById('tool-'+t)?.addEventListener('click', ()=>setTool(t));
 });
-document.getElementById('custom-color').addEventListener('input',e=>{currentColor=e.target.value;document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));});
-document.getElementById('brush-size').addEventListener('input',()=>{brushSize=parseInt(document.getElementById('brush-size').value);document.getElementById('brush-size-val').textContent=brushSize+'px';});
-document.getElementById('canvas-clear').addEventListener('click',()=>{ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,canvas.width,canvas.height);showToast('Canvas limpiado 🧹');});
 
-document.getElementById('canvas-save-draft').addEventListener('click',()=>{
-  const dataURL=canvas.toDataURL('image/png');
-  const draft={id:Date.now(),data:dataURL,date:new Date().toISOString()};
+document.querySelectorAll('.pt-brush-type').forEach(btn => {
+  btn.addEventListener('click', () => {
+    paintState.brushType = btn.dataset.brush;
+    document.querySelectorAll('.pt-brush-type').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('brush-size')?.addEventListener('input', e => {
+  paintState.size = parseInt(e.target.value);
+  document.getElementById('brush-size-val').textContent = paintState.size+'px';
+});
+
+document.getElementById('brush-opacity')?.addEventListener('input', e => {
+  paintState.opacity = parseInt(e.target.value)/100;
+  document.getElementById('opacity-val').textContent = e.target.value+'%';
+});
+
+document.getElementById('custom-color')?.addEventListener('input', e => selectColor(e.target.value));
+
+document.getElementById('stamp-size')?.addEventListener('input', e => {
+  paintState.stampSize = parseInt(e.target.value);
+});
+
+document.querySelectorAll('.stamp-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    paintState.stamp = btn.dataset.stamp;
+    document.querySelectorAll('.stamp-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('text-font')?.addEventListener('change', e => {
+  paintState.textFont = e.target.value;
+});
+
+document.getElementById('shape-filled')?.addEventListener('change', e => {
+  paintState.shapeFilled = e.target.checked;
+});
+
+// Acciones
+document.getElementById('canvas-undo')?.addEventListener('click', undo);
+document.getElementById('canvas-redo')?.addEventListener('click', redo);
+document.getElementById('canvas-clear')?.addEventListener('click', () => {
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  pushUndo(); showToast('Canvas limpiado 🧹');
+});
+
+// Teclado shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey||e.metaKey) && e.key==='y') { e.preventDefault(); redo(); }
+});
+
+document.getElementById('canvas-save-draft')?.addEventListener('click', () => {
+  const dataURL = canvas.toDataURL('image/png');
+  const draft = {id:Date.now(), data:dataURL, date:new Date().toISOString()};
   state.drafts.unshift(draft);
-  if(state.drafts.length>20) state.drafts=state.drafts.slice(0,20);
+  if (state.drafts.length>20) state.drafts=state.drafts.slice(0,20);
   saveState(); renderDrafts();
-  showToast('Borrador guardado 💾',true);
+  showToast('¡Obra guardada! 💾🎨', true);
   checkAchievements();
 });
-document.getElementById('canvas-download').addEventListener('click',downloadCanvas);
-function downloadCanvas(){const link=document.createElement('a');link.download=`mi-dibujo-${Date.now()}.png`;link.href=canvas.toDataURL('image/png');link.click();}
 
-document.getElementById('canvas-share').addEventListener('click',()=>{
-  const dataURL=canvas.toDataURL('image/png');
-  document.getElementById('share-preview-img').src=dataURL;
-  document.getElementById('share-modal').style.display='flex';
-  document.getElementById('share-whatsapp').addEventListener('click',async e=>{
+document.getElementById('canvas-download')?.addEventListener('click', downloadCanvas);
+function downloadCanvas() {
+  const link = document.createElement('a');
+  link.download = `mi-arte-${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+document.getElementById('canvas-share')?.addEventListener('click', () => {
+  const dataURL = canvas.toDataURL('image/png');
+  document.getElementById('share-preview-img').src = dataURL;
+  document.getElementById('share-modal').style.display = 'flex';
+  document.getElementById('share-whatsapp').addEventListener('click', async e => {
     e.preventDefault();
-    if(navigator.share){try{const blob=await(await fetch(dataURL)).blob();const file=new File([blob],'mi-dibujo.png',{type:'image/png'});await navigator.share({files:[file],title:'Mi dibujo 🎨',text:'Te comparto este dibujo 🌸'});}catch(err){window.open('https://wa.me/?text=Te%20comparto%20este%20dibujo%20%F0%9F%8C%B8','_blank');}}
-    else{window.open('https://web.whatsapp.com/','_blank');}
+    if (navigator.share) { try { const blob=await(await fetch(dataURL)).blob(); const file=new File([blob],'mi-arte.png',{type:'image/png'}); await navigator.share({files:[file],title:'Mi dibujo 🎨',text:'¡Mira lo que dibujé! 🌸'}); } catch(err) { window.open('https://wa.me/','_blank'); } }
+    else { window.open('https://web.whatsapp.com/','_blank'); }
   });
-  document.getElementById('share-download-btn').addEventListener('click',downloadCanvas);
-  document.getElementById('share-copy').addEventListener('click',async()=>{
-    try{const blob=await(await fetch(dataURL)).blob();await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);showToast('Imagen copiada al portapapeles 📋',true);}
-    catch(e){showToast('Tu navegador no soporta esta función');}
+  document.getElementById('share-download-btn')?.addEventListener('click', downloadCanvas);
+  document.getElementById('share-copy')?.addEventListener('click', async () => {
+    try { const blob=await(await fetch(dataURL)).blob(); await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); showToast('Imagen copiada 📋',true); }
+    catch(e) { showToast('Tu navegador no soporta esta función'); }
   });
 });
-document.getElementById('share-modal-close').addEventListener('click',()=>document.getElementById('share-modal').style.display='none');
-document.getElementById('share-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.style.display='none';});
+document.getElementById('share-modal-close')?.addEventListener('click',()=>document.getElementById('share-modal').style.display='none');
+document.getElementById('share-modal')?.addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.style.display='none';});
 
-function renderDrafts(){
-  const grid=document.getElementById('drafts-grid');
-  if(state.drafts.length===0){grid.innerHTML=`<div class="empty-state"><div class="empty-icon">🎨</div><p>Guarda tus dibujos aquí</p></div>`;return;}
-  grid.innerHTML='';
-  state.drafts.forEach((draft,i)=>{
-    const item=document.createElement('div'); item.className='draft-item';
-    item.innerHTML=`<img src="${draft.data}" alt="Borrador ${i+1}"><button class="draft-delete" title="Eliminar">✕</button>`;
+function renderDrafts() {
+  const grid = document.getElementById('drafts-grid');
+  if (state.drafts.length===0) { grid.innerHTML=`<div class="empty-state"><div class="empty-icon">🎨</div><p>Guarda tus obras aquí</p></div>`; return; }
+  grid.innerHTML = '';
+  state.drafts.forEach((draft,i) => {
+    const item = document.createElement('div'); item.className='draft-item';
+    item.innerHTML=`<img src="${draft.data}" alt="Arte ${i+1}"><button class="draft-delete" title="Eliminar">✕</button>`;
     item.querySelector('.draft-delete').addEventListener('click',e=>{e.stopPropagation();state.drafts=state.drafts.filter(d=>d.id!==draft.id);saveState();renderDrafts();});
-    item.addEventListener('click',()=>{const img=new Image();img.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);};img.src=draft.data;showToast('Borrador cargado 🎨',true);});
+    item.addEventListener('click',()=>{const img=new Image();img.onload=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);pushUndo();};img.src=draft.data;showToast('Obra cargada 🎨',true);});
     grid.appendChild(item);
     gsap.fromTo(item,{opacity:0,scale:0.8},{opacity:1,scale:1,duration:0.3,delay:i*0.05,ease:'back.out(1.7)'});
   });
 }
+
+// Init canvas
+buildColorPalette();
+setTool('pen');
+
 
 // ===================== ÁRBOL =====================
 const treeStates = [
@@ -1095,12 +1446,30 @@ document.querySelectorAll('.dani-tab').forEach(tab => {
     const panel = document.getElementById('dpanel-'+target);
     if (!panel) return;
     panel.classList.add('active');
-    if(target==='buzzon') { renderBuzzon(); updateUnreadBadge(); }
+    if(target==='buzzon')    { renderBuzzon(); updateUnreadBadge(); }
     if(target==='write-dani') setTimeout(initPinLock, 50);
-    if(target==='alison-reply') { renderAlisonReplies(); updateAlisonReplyBadge(); }
-    if(target==='livechat') { renderLiveChat(); updateChatBadge(); }
+    if(target==='livechat')  { renderLiveChat(); updateChatBadge(); }
     gsap.fromTo(panel,{opacity:0,y:12},{opacity:1,y:0,duration:0.35,ease:'power2.out'});
   });
+});
+
+// Sub-tabs dentro del área de Dani (post-PIN)
+document.addEventListener('click', e => {
+  const subTab = e.target.closest('.dani-sub-tab');
+  if (!subTab) return;
+  const target = subTab.dataset.subtab;
+  document.querySelectorAll('.dani-sub-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.dani-sub-panel').forEach(p=>p.classList.remove('active'));
+  subTab.classList.add('active');
+  const panel = document.getElementById('dsubpanel-'+target);
+  if (panel) {
+    panel.classList.add('active');
+    gsap.fromTo(panel,{opacity:0,y:8},{opacity:1,y:0,duration:0.3,ease:'power2.out'});
+  }
+  if (target === 'alison-replies') {
+    renderAlisonReplies();
+    updateAlisonReplyBadge();
+  }
 });
 
 function initDaniTab(){ updateAIContextPill(); updateUnreadBadge(); updateAlisonReplyBadge(); updateChatBadge(); renderBuzzon(); }
@@ -1117,10 +1486,11 @@ function updateAIContextPill(){
 // 🆕 Badge de respuestas de Alison (aparece en el tab "Escribir a Dani")
 function updateAlisonReplyBadge() {
   const unread = (state.alisonReplies||[]).filter(r => !r.readByDani).length;
-  const badge = document.getElementById('alison-reply-badge');
-  if (!badge) return;
-  if (unread > 0) { badge.textContent = unread; badge.style.display = 'flex'; }
-  else badge.style.display = 'none';
+  [document.getElementById('alison-reply-badge'), document.getElementById('alison-reply-inner-badge')].forEach(badge => {
+    if (!badge) return;
+    badge.textContent = unread;
+    badge.style.display = unread > 0 ? 'flex' : 'none';
+  });
 }
 
 // ============================================================
@@ -1416,22 +1786,24 @@ function renderAlisonReplies() {
   if (!container) return;
   const replies = state.alisonReplies || [];
   if (replies.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🌸</div><p>Alison aún no ha respondido</p><p class="empty-sub">Cuando Alison te escriba, sus mensajes aparecerán aquí 💕</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🌸</div><p>Alison aún no ha respondido ninguna carta</p><p class="empty-sub">Cuando Alison responda, aparecerá aquí 💕</p></div>`;
     return;
   }
   container.innerHTML = '';
   replies.forEach((r, i) => {
     const item = document.createElement('div');
     item.className = `buzzon-item alison-reply-item ${r.readByDani?'':'unread'}`;
+    const contextLine = r.replyToTitle ? `<div class="reply-context">↩ En respuesta a: "${r.replyToTitle}"</div>` : '';
     item.innerHTML = `
       <div class="buzzon-emoji">🌸</div>
       <div class="buzzon-info">
+        ${contextLine}
         <div class="buzzon-title">${r.title}</div>
         <div class="buzzon-preview">${(r.body||'').substring(0,60)}...</div>
       </div>
       <div class="buzzon-meta">
         <div class="buzzon-date">${formatDateShort(r.date)}</div>
-        <div class="buzzon-type">💌 De Alison</div>
+        <div class="buzzon-type">🌸 Alison</div>
       </div>`;
     item.addEventListener('click', async () => {
       openAlisonReplyModal(r);
@@ -1655,42 +2027,100 @@ function openLetterModal(msg){
     document.getElementById('letter-modal-date').textContent  = formatDate(msg.date);
     document.getElementById('letter-modal-body').textContent  = msg.body;
 
-    // Reacciones en el buzón
+    // Reacciones
     const reactBar = document.getElementById('letter-reactions-bar');
     if (reactBar) {
       const REACTION_OPTIONS = ['💕','🥰','😭','😂','🌸','💙','🔥','✨'];
       const reactions = msg.reactions || {};
-      const existingHTML = REACTION_OPTIONS.map(e => {
+      reactBar.innerHTML = REACTION_OPTIONS.map(e => {
         const users = reactions[e]||[];
         const active = users.includes('alison');
         return `<button class="letter-react-btn ${active?'active':''}" data-emoji="${e}" data-id="${msg.id}">${e}${users.length?` <span>${users.length}</span>`:''}</button>`;
       }).join('');
-      reactBar.innerHTML = existingHTML;
       reactBar.querySelectorAll('.letter-react-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const emoji = btn.dataset.emoji;
-          const reactions = msg.reactions || {};
-          if (!reactions[emoji]) reactions[emoji] = [];
-          const idx = reactions[emoji].indexOf('alison');
-          if (idx >= 0) reactions[emoji].splice(idx,1);
-          else reactions[emoji].push('alison');
-          msg.reactions = reactions;
-          await cloudReactToMsg(msg.id, 'buzzon', reactions);
-          btn.classList.toggle('active', reactions[emoji].includes('alison'));
-          const countSpan = btn.querySelector('span');
-          if (reactions[emoji].length > 0) {
-            if (countSpan) countSpan.textContent = reactions[emoji].length;
-            else btn.innerHTML = `${emoji} <span>${reactions[emoji].length}</span>`;
-          } else {
-            btn.innerHTML = emoji;
-          }
-          gsap.fromTo(btn, {scale:0.8}, {scale:1, duration:0.2, ease:'back.out(2)'});
+          const r = msg.reactions || {};
+          if (!r[emoji]) r[emoji] = [];
+          const idx = r[emoji].indexOf('alison');
+          if (idx >= 0) r[emoji].splice(idx,1); else r[emoji].push('alison');
+          msg.reactions = r;
+          await cloudReactToMsg(msg.id, 'buzzon', r);
+          btn.classList.toggle('active', r[emoji].includes('alison'));
+          const cs = btn.querySelector('span');
+          if (r[emoji].length>0) { if(cs) cs.textContent=r[emoji].length; else btn.innerHTML=`${emoji} <span>${r[emoji].length}</span>`; }
+          else btn.innerHTML = emoji;
+          gsap.fromTo(btn,{scale:0.8},{scale:1,duration:0.2,ease:'back.out(2)'});
         });
       });
     }
 
+    // Mostrar respuestas previas a esta carta
+    const prevRepliesEl = document.getElementById('letter-prev-replies');
+    if (prevRepliesEl) {
+      const prevReplies = (state.alisonReplies||[]).filter(r => r.replyToId === msg.id);
+      if (prevReplies.length > 0) {
+        prevRepliesEl.innerHTML = `<div class="prev-replies-title">💌 Tus respuestas anteriores:</div>` +
+          prevReplies.map(r => `
+            <div class="prev-reply-item">
+              <div class="prev-reply-title">🌸 ${r.title}</div>
+              <div class="prev-reply-body">${r.body}</div>
+              <div class="prev-reply-date">${formatDateShort(r.date)}</div>
+            </div>`).join('');
+      } else {
+        prevRepliesEl.innerHTML = '';
+      }
+    }
+
     letterContent.style.display='block';
     if(!msg.read) await cloudUpdateBuzzon(msg.id, { read: true });
+
+    // Toggle del formulario de respuesta
+    const toggle = document.getElementById('letter-reply-toggle');
+    const form   = document.getElementById('letter-reply-form');
+    toggle?.addEventListener('click', () => {
+      const isOpen = form.style.display !== 'none';
+      form.style.display = isOpen ? 'none' : 'block';
+      toggle.style.background = isOpen ? '' : 'rgba(255,133,161,0.1)';
+      if (!isOpen) gsap.fromTo(form,{opacity:0,y:-8},{opacity:1,y:0,duration:0.3,ease:'power2.out'});
+    });
+
+    // Enviar respuesta inline
+    const sendBtn = document.getElementById('letter-reply-send-btn');
+    const cancelBtn = document.getElementById('letter-reply-cancel-btn');
+    // Remove old listeners
+    const newSendBtn = sendBtn?.cloneNode(true);
+    sendBtn?.parentNode?.replaceChild(newSendBtn, sendBtn);
+    const newCancelBtn = cancelBtn?.cloneNode(true);
+    cancelBtn?.parentNode?.replaceChild(newCancelBtn, cancelBtn);
+
+    newSendBtn?.addEventListener('click', async () => {
+      const titleEl = document.getElementById('letter-reply-title');
+      const bodyEl  = document.getElementById('letter-reply-body');
+      const title = titleEl?.value.trim();
+      const body  = bodyEl?.value.trim();
+      if (!title || !body) { showToast('Escribe un título y tu respuesta 🌸'); return; }
+      const reply = {
+        id: Date.now(), title, body, replyToId: msg.id,
+        replyToTitle: msg.title,
+        emoji: '🌸', type: 'respuesta',
+        date: new Date().toISOString(),
+        readByDani: false, from: 'Alison'
+      };
+      await cloudSaveAlisonReply(reply);
+      if (titleEl) titleEl.value = '';
+      if (bodyEl)  bodyEl.value  = '';
+      if (form) form.style.display = 'none';
+      // Actualizar badge
+      updateAlisonReplyBadge();
+      showToast('💌 ¡Respuesta enviada a Dani!', true);
+      gsap.fromTo('#letter-reply-toggle',{scale:1},{scale:1.08,duration:0.15,yoyo:true,repeat:1});
+    });
+
+    newCancelBtn?.addEventListener('click', () => {
+      if (form) form.style.display = 'none';
+    });
+
   },1000);
 }
 
@@ -2074,7 +2504,8 @@ function runInit() {
     });
   }
 
-  // Botón responder de Alison
+  // Botón responder de Alison — ahora es inline en el modal de carta
+  // (mantenemos para compatibilidad si existe el elemento)
   document.getElementById('alison-reply-send-btn')?.addEventListener('click', sendAlisonReply);
 
   // Modal respuesta de Alison — cerrar

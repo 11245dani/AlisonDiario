@@ -188,57 +188,161 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
 <!-- ===== SECCIÓN CANVAS ===== -->
 <section class="section" id="tab-canvas">
   <div class="canvas-hero">
-    <h1 class="hero-title">Tus Dibujos <em>Mágicos</em> 🎨</h1>
-    <p class="hero-sub">Expresa con colores lo que las palabras no pueden decir</p>
+    <h1 class="hero-title">Tu Estudio <em>de Arte</em> 🎨</h1>
+    <p class="hero-sub">Pinta, dibuja, expresa — todo lo que sientes tiene forma y color</p>
   </div>
-  <div class="card canvas-card">
-    <div class="canvas-toolbar">
-      <div class="tool-group">
-        <button class="tool-btn active" id="tool-pen" title="Pincel">🖊️</button>
-        <button class="tool-btn" id="tool-eraser" title="Borrador">🧹</button>
-        <button class="tool-btn" id="tool-fill" title="Rellenar">🪣</button>
-      </div>
-      <div class="tool-group">
-        <label class="size-label">Tamaño:</label>
-        <input type="range" min="1" max="40" value="5" id="brush-size" class="mini-range">
-        <span id="brush-size-val">5px</span>
-      </div>
-      <div class="tool-group color-group">
-        <label class="size-label">Color:</label>
-        <div class="color-palette">
-          <button class="color-swatch active" style="background:#FFB3C1" data-color="#FFB3C1"></button>
-          <button class="color-swatch" style="background:#FF85A1" data-color="#FF85A1"></button>
-          <button class="color-swatch" style="background:#FFC8DD" data-color="#FFC8DD"></button>
-          <button class="color-swatch" style="background:#FFAFCC" data-color="#FFAFCC"></button>
-          <button class="color-swatch" style="background:#BDE0FE" data-color="#BDE0FE"></button>
-          <button class="color-swatch" style="background:#CDB4DB" data-color="#CDB4DB"></button>
-          <button class="color-swatch" style="background:#A2D2FF" data-color="#A2D2FF"></button>
-          <button class="color-swatch" style="background:#E8C4DE" data-color="#E8C4DE"></button>
-          <button class="color-swatch" style="background:#1a0a0f" data-color="#1a0a0f"></button>
-          <button class="color-swatch" style="background:#fff0f5" data-color="#fff0f5"></button>
+
+  <div class="paint-app">
+
+    <!-- ═══ BARRA DE HERRAMIENTAS SUPERIOR ═══ -->
+    <div class="paint-toolbar">
+
+      <!-- Herramientas de dibujo -->
+      <div class="pt-group">
+        <div class="pt-group-label">Herramienta</div>
+        <div class="pt-tools">
+          <button class="pt-btn active" id="tool-pen"       title="Pincel libre">🖊️</button>
+          <button class="pt-btn"        id="tool-brush"     title="Pincel suave">🖌️</button>
+          <button class="pt-btn"        id="tool-spray"     title="Spray">💨</button>
+          <button class="pt-btn"        id="tool-line"      title="Línea recta">╱</button>
+          <button class="pt-btn"        id="tool-rect"      title="Rectángulo">▭</button>
+          <button class="pt-btn"        id="tool-circle"    title="Círculo">○</button>
+          <button class="pt-btn"        id="tool-text"      title="Texto">T</button>
+          <button class="pt-btn"        id="tool-stamp"     title="Emoji stamp">⭐</button>
+          <button class="pt-btn"        id="tool-fill"      title="Rellenar">🪣</button>
+          <button class="pt-btn"        id="tool-eraser"    title="Borrador">🧹</button>
         </div>
-        <input type="color" id="custom-color" value="#FFB3C1" class="color-picker-input" title="Color personalizado">
+      </div>
+
+      <!-- Pinceles -->
+      <div class="pt-group">
+        <div class="pt-group-label">Pincel</div>
+        <div class="pt-tools">
+          <button class="pt-brush-type active" data-brush="round"  title="Redondo">●</button>
+          <button class="pt-brush-type"        data-brush="square" title="Cuadrado">■</button>
+          <button class="pt-brush-type"        data-brush="callig" title="Caligráfico">⟋</button>
+        </div>
+      </div>
+
+      <!-- Tamaño -->
+      <div class="pt-group">
+        <div class="pt-group-label">Tamaño <span id="brush-size-val">5px</span></div>
+        <input type="range" min="1" max="60" value="5" id="brush-size" class="pt-range">
+      </div>
+
+      <!-- Opacidad -->
+      <div class="pt-group">
+        <div class="pt-group-label">Opacidad <span id="opacity-val">100%</span></div>
+        <input type="range" min="10" max="100" value="100" id="brush-opacity" class="pt-range">
+      </div>
+
+      <!-- Acciones -->
+      <div class="pt-group pt-actions">
+        <div class="pt-group-label">Acciones</div>
+        <div class="pt-tools">
+          <button class="pt-btn" id="canvas-undo"     title="Deshacer (Ctrl+Z)">↩️</button>
+          <button class="pt-btn" id="canvas-redo"     title="Rehacer (Ctrl+Y)">↪️</button>
+          <button class="pt-btn" id="canvas-clear"    title="Limpiar todo">🗑️</button>
+          <button class="pt-btn" id="canvas-save-draft" title="Guardar borrador">💾</button>
+          <button class="pt-btn" id="canvas-download" title="Descargar">⬇️</button>
+          <button class="pt-btn" id="canvas-share"    title="Compartir">📤</button>
+        </div>
       </div>
     </div>
-    <div class="canvas-wrapper">
-      <canvas id="drawing-canvas" width="900" height="500"></canvas>
+
+    <!-- ═══ ÁREA PRINCIPAL ═══ -->
+    <div class="paint-main">
+
+      <!-- Sidebar izquierdo: colores + stamps -->
+      <div class="paint-sidebar">
+
+        <!-- Paleta completa -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Paleta</div>
+          <div class="color-palette-full" id="color-palette-full">
+            <!-- Generada por JS -->
+          </div>
+          <div class="color-custom-row">
+            <div class="current-color-preview" id="current-color-preview"></div>
+            <input type="color" id="custom-color" value="#FFB3C1" class="color-picker-input" title="Color personalizado">
+          </div>
+        </div>
+
+        <!-- Colores recientes -->
+        <div class="sidebar-section">
+          <div class="sidebar-label">Recientes</div>
+          <div class="color-recent" id="color-recent"></div>
+        </div>
+
+        <!-- Stamps de emojis -->
+        <div class="sidebar-section" id="stamp-section" style="display:none">
+          <div class="sidebar-label">Stamps</div>
+          <div class="stamp-grid" id="stamp-grid">
+            <button class="stamp-btn active" data-stamp="🌸">🌸</button>
+            <button class="stamp-btn" data-stamp="💕">💕</button>
+            <button class="stamp-btn" data-stamp="✨">✨</button>
+            <button class="stamp-btn" data-stamp="🌺">🌺</button>
+            <button class="stamp-btn" data-stamp="🌷">🌷</button>
+            <button class="stamp-btn" data-stamp="💮">💮</button>
+            <button class="stamp-btn" data-stamp="🦋">🦋</button>
+            <button class="stamp-btn" data-stamp="⭐">⭐</button>
+            <button class="stamp-btn" data-stamp="🌈">🌈</button>
+            <button class="stamp-btn" data-stamp="🍀">🍀</button>
+            <button class="stamp-btn" data-stamp="🌙">🌙</button>
+            <button class="stamp-btn" data-stamp="☁️">☁️</button>
+            <button class="stamp-btn" data-stamp="💙">💙</button>
+            <button class="stamp-btn" data-stamp="💛">💛</button>
+            <button class="stamp-btn" data-stamp="💜">💜</button>
+            <button class="stamp-btn" data-stamp="🔥">🔥</button>
+          </div>
+          <div class="pt-group" style="margin-top:8px">
+            <div class="sidebar-label">Tamaño stamp</div>
+            <input type="range" min="16" max="80" value="32" id="stamp-size" class="pt-range">
+          </div>
+        </div>
+
+        <!-- Input texto -->
+        <div class="sidebar-section" id="text-section" style="display:none">
+          <div class="sidebar-label">Texto</div>
+          <input type="text" id="text-input" class="text-tool-input" placeholder="Escribe aquí...">
+          <select id="text-font" class="text-font-select">
+            <option value="'Playfair Display', serif">Playfair</option>
+            <option value="'Dancing Script', cursive">Dancing</option>
+            <option value="'Lora', serif">Lora</option>
+            <option value="sans-serif">Simple</option>
+          </select>
+        </div>
+
+        <!-- Modo relleno forma -->
+        <div class="sidebar-section" id="shape-section" style="display:none">
+          <div class="sidebar-label">Forma</div>
+          <label class="shape-fill-label">
+            <input type="checkbox" id="shape-filled"> Relleno
+          </label>
+        </div>
+
+      </div>
+
+      <!-- Canvas -->
+      <div class="paint-canvas-wrap">
+        <canvas id="drawing-canvas" width="1200" height="650"></canvas>
+      </div>
     </div>
-    <div class="canvas-actions">
-      <button class="btn-secondary" id="canvas-clear">🗑️ Limpiar</button>
-      <button class="btn-secondary" id="canvas-save-draft">💾 Guardar borrador</button>
-      <button class="btn-primary" id="canvas-download">⬇️ Descargar</button>
-      <button class="btn-primary" id="canvas-share">📤 Compartir</button>
-    </div>
+
+    <!-- Borradores -->
     <div class="drafts-section">
-      <h3 class="drafts-title">Mis borradores guardados 🖼️</h3>
+      <h3 class="drafts-title">Mis creaciones guardadas 🖼️</h3>
       <div class="drafts-grid" id="drafts-grid">
         <div class="empty-state" id="empty-drafts">
-          <div class="empty-icon">🎨</div><p>Guarda tus dibujos aquí</p>
+          <div class="empty-icon">🎨</div>
+          <p>Guarda tus obras aquí</p>
         </div>
       </div>
     </div>
+
   </div>
 </section>
+
 
 <!-- ===== SECCIÓN ÁRBOL ===== -->
 <section class="section" id="tab-tree">
@@ -324,34 +428,35 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
 <section class="section" id="tab-dani">
   <div class="dani-hero">
     <h1 class="hero-title">Dani <em>& Alison</em> 💌</h1>
-    <p class="hero-sub">Tu espacio especial, Alison — mensajes de Dani y tu compañera de IA 🌸</p>
+    <p class="hero-sub">Tu espacio especial — la IA que te conoce, el chat con Dani y sus cartas de amor 🌸</p>
   </div>
 
   <div class="dani-inner-tabs">
-    <button class="dani-tab active" data-dtab="ai"><span>🤖</span> Tu IA</button>
-    <button class="dani-tab" data-dtab="buzzon">
-      <span>💌</span> Buzón
-      <span class="unread-badge" id="unread-badge" style="display:none">0</span>
+    <button class="dani-tab active" data-dtab="ai">
+      <span>🌸</span> Jardincita IA
     </button>
     <button class="dani-tab" data-dtab="livechat">
-      <span>💬</span> Chat
-      <span class="unread-badge" id="chat-live-badge" style="display:none;background:#a8d8ea">0</span>
+      <span>💬</span> Chat con Dani
+      <span class="unread-badge" id="chat-live-badge" style="display:none">0</span>
+    </button>
+    <button class="dani-tab" data-dtab="buzzon">
+      <span>💌</span> Cartas de Dani
+      <span class="unread-badge" id="unread-badge" style="display:none">0</span>
     </button>
     <button class="dani-tab" data-dtab="write-dani">
       <span>✍️</span> Dani escribe
-      <span class="unread-badge" id="alison-reply-badge" style="display:none;background:#FF85A1">0</span>
+      <span class="unread-badge" id="alison-reply-badge" style="display:none">0</span>
     </button>
-    <button class="dani-tab" data-dtab="alison-reply"><span>🌸</span> Alison responde</button>
   </div>
 
-  <!-- IA PERSONAL -->
+  <!-- ═══ IA PERSONAL ═══ -->
   <div class="dani-panel active" id="dpanel-ai">
     <div class="card ai-card">
       <div class="ai-header">
         <div class="ai-avatar">🌸</div>
         <div class="ai-info">
           <h3 class="ai-name">Jardincita IA</h3>
-          <p class="ai-desc">Tu compañera que te conoce de verdad — sabe cómo te has sentido, lo que has vivido y lo que necesitas escuchar</p>
+          <p class="ai-desc">Tu compañera que te conoce de verdad — sabe cómo te sientes, lo que has vivido y lo que necesitas escuchar</p>
         </div>
         <div class="ai-status"><span class="ai-dot"></span> en línea</div>
       </div>
@@ -372,24 +477,24 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
       <div class="ai-quick-prompts">
         <p class="quick-label">Sugerencias rápidas:</p>
         <div class="quick-btns">
-          <button class="quick-btn" data-prompt="Necesito un abrazo de palabras hoy 🤗">🤗 Necesito un abrazo</button>
+          <button class="quick-btn" data-prompt="Necesito un abrazo de palabras hoy 🤗">🤗 Abrazo</button>
           <button class="quick-btn" data-prompt="Cuéntame algo bonito para animarme ✨">✨ Algo bonito</button>
           <button class="quick-btn" data-prompt="Ayúdame a reflexionar sobre cómo me he sentido estos días 🌙">🌙 Reflexionar</button>
-          <button class="quick-btn" data-prompt="Dame un mensaje de amor especial de Dani 💕">💕 Mensaje de Dani</button>
+          <button class="quick-btn" data-prompt="Dame un mensaje de amor especial de Dani 💕">💕 De Dani</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- CHAT EN TIEMPO REAL -->
+  <!-- ═══ CHAT EN TIEMPO REAL ═══ -->
   <div class="dani-panel" id="dpanel-livechat">
     <div class="card lc-card">
       <div class="lc-header">
         <div class="lc-header-info">
           <div class="lc-avatar">💬</div>
           <div>
-            <div class="lc-title">Dani <span style="opacity:.5">↔</span> Alison</div>
-            <div class="lc-subtitle">Chat en tiempo real 💕</div>
+            <div class="lc-title">Chat Dani ↔ Alison</div>
+            <div class="lc-subtitle">Mensajes en tiempo real — se sincronizan al instante 💕</div>
           </div>
         </div>
         <div class="lc-sender-area">
@@ -405,22 +510,26 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
     </div>
   </div>
 
-  <!-- BUZÓN DE DANI -->
+  <!-- ═══ BUZÓN — CARTAS DE DANI ═══ -->
   <div class="dani-panel" id="dpanel-buzzon">
     <div class="card">
-      <h2 class="card-title">Buzón de Dani 💌</h2>
-      <p class="card-sub">Los mensajes que Dani dejó especialmente para ti, Alison</p>
+      <div class="buzzon-header">
+        <div>
+          <h2 class="card-title">Cartas de Dani 💌</h2>
+          <p class="card-sub">Mensajes especiales que Dani guardó solo para ti, Alison</p>
+        </div>
+      </div>
       <div class="buzzon-list" id="buzzon-list">
         <div class="empty-state" id="empty-buzzon">
           <div class="empty-icon">📭</div>
-          <p>Aún no hay mensajes de Dani</p>
-          <p class="empty-sub">Pídele a Dani que te deje un mensaje especial 💕</p>
+          <p>Aún no hay cartas de Dani</p>
+          <p class="empty-sub">Pídele a Dani que te deje algo especial 💕</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ESCRIBIR A DANI -->
+  <!-- ═══ DANI ESCRIBE + RESPUESTAS DE ALISON ═══ -->
   <div class="dani-panel" id="dpanel-write-dani">
 
     <!-- PIN LOCK SCREEN -->
@@ -428,8 +537,8 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
       <div class="card pin-card">
         <div class="pin-header">
           <div class="pin-avatar">💌</div>
-          <h2 class="card-title">Área privada de Dani</h2>
-          <p class="card-sub">Solo Dani puede dejarle mensajes a Alison aquí 🌸<br>Ingresa tu PIN secreto</p>
+          <h2 class="card-title">Área de Dani</h2>
+          <p class="card-sub">Ingresa tu PIN para escribirle a Alison y ver sus respuestas 🌸</p>
         </div>
         <div class="pin-dots" id="pin-dots">
           <div class="pin-dot" id="dot-0"></div>
@@ -439,7 +548,7 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
         </div>
         <div class="pin-error" id="pin-error" style="display:none">
           <span class="pin-error-icon">🌸</span>
-          <p>Recuerda que solo Dani puede enviarte mensajes, Alison 💕</p>
+          <p>PIN incorrecto. Inténtalo de nuevo 💕</p>
         </div>
         <div class="pin-keypad" id="pin-keypad">
           <button class="pin-key" data-val="1">1</button>
@@ -455,79 +564,80 @@ Escribe libremente. Tus palabras son válidas, tus sentimientos importan. Este j
           <button class="pin-key" data-val="0">0</button>
           <button class="pin-key pin-key-del" data-val="del">⌫</button>
         </div>
-        <p class="pin-hint">¿Dani? Ingresa el PIN que acordaron 💌</p>
+        <p class="pin-hint">¿Dani? Ingresa el PIN secreto 💌</p>
       </div>
     </div>
 
-    <!-- FORMULARIO (oculto hasta pasar el PIN) -->
+    <!-- ÁREA DE DANI (post-PIN) -->
     <div class="dani-write-form" id="dani-write-form" style="display:none">
-    <div class="card dani-write-card">
-      <div class="dani-mode-banner">
-        <span>✍️</span>
-        <div><strong>Modo Dani</strong><p>Escribe un mensaje especial para Alison</p></div>
-      </div>
-      <div class="dani-form">
-        <div class="form-group">
-          <label class="form-label">Tipo de mensaje</label>
-          <div class="msg-type-selector">
-            <button class="msg-type-btn active" data-type="carta">💌 Carta de amor</button>
-            <button class="msg-type-btn" data-type="sorpresa">🎁 Sorpresa</button>
-            <button class="msg-type-btn" data-type="recordatorio">⭐ Recordatorio</button>
-            <button class="msg-type-btn" data-type="poema">🌹 Poema</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Título del mensaje</label>
-          <input type="text" class="dani-input" id="dani-msg-title" placeholder="Ej: Para cuando lo necesites...">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Tu mensaje para Alison 💕</label>
-          <textarea class="dani-textarea" id="dani-msg-body" placeholder="Escribe desde el corazón..."></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">¿Programar para una fecha especial? (opcional)</label>
-          <input type="date" class="dani-input" id="dani-msg-date" min="">
-          <p class="form-hint">Si eliges una fecha, Alison solo podrá abrir el mensaje ese día 🔒</p>
-        </div>
-        <div class="form-group">
-          <label class="form-label">¿Con qué emoji la acompañas?</label>
-          <div class="emoji-picker-row">
-            <button class="emoji-pick active" data-emoji="💕">💕</button>
-            <button class="emoji-pick" data-emoji="🌸">🌸</button>
-            <button class="emoji-pick" data-emoji="🥰">🥰</button>
-            <button class="emoji-pick" data-emoji="🌹">🌹</button>
-            <button class="emoji-pick" data-emoji="✨">✨</button>
-            <button class="emoji-pick" data-emoji="💫">💫</button>
-            <button class="emoji-pick" data-emoji="🎁">🎁</button>
-            <button class="emoji-pick" data-emoji="🌙">🌙</button>
-          </div>
-        </div>
-        <button class="btn-primary btn-dani-send" id="dani-send-btn">💌 Enviar al buzón de Alison</button>
-      </div>
-    </div>
-    </div><!-- /dani-write-form -->
-  </div>
 
-  <!-- ALISON RESPONDE A DANI -->
-  <div class="dani-panel" id="dpanel-alison-reply">
-    <div class="card">
-      <div class="dani-mode-banner" style="background:linear-gradient(135deg,rgba(255,179,193,0.3),rgba(255,200,221,0.2))">
-        <span>🌸</span>
-        <div><strong>Respuestas de Alison</strong><p>Aquí viven los mensajes que Alison te ha escrito, Dani 💕</p></div>
+      <!-- Sub-tabs dentro del área de Dani -->
+      <div class="dani-sub-tabs">
+        <button class="dani-sub-tab active" data-subtab="write">✍️ Escribir a Alison</button>
+        <button class="dani-sub-tab" data-subtab="alison-replies">
+          🌸 Respuestas de Alison
+          <span class="unread-badge" id="alison-reply-inner-badge" style="display:none">0</span>
+        </button>
       </div>
-      <!-- Formulario para que Alison responda -->
-      <div class="alison-reply-form">
-        <h3 class="card-title" style="font-size:17px;margin-bottom:8px">Escribirle a Dani 🌸</h3>
-        <input type="text" class="dani-input" id="alison-reply-title" placeholder="Título de tu respuesta...">
-        <textarea class="dani-textarea" id="alison-reply-body" placeholder="Escríbele con amor a Dani..."></textarea>
-        <button class="btn-primary" id="alison-reply-send-btn">🌸 Enviarle a Dani</button>
+
+      <!-- Escribir nueva carta -->
+      <div class="dani-sub-panel active" id="dsubpanel-write">
+        <div class="card dani-write-card">
+          <div class="dani-mode-banner">
+            <span>✍️</span>
+            <div><strong>Modo Dani</strong> — escribe algo especial para Alison 💕</div>
+          </div>
+          <div class="dani-form">
+            <div class="form-group">
+              <label class="form-label">Tipo de mensaje</label>
+              <div class="msg-type-selector">
+                <button class="msg-type-btn active" data-type="carta">💌 Carta</button>
+                <button class="msg-type-btn" data-type="sorpresa">🎁 Sorpresa</button>
+                <button class="msg-type-btn" data-type="recordatorio">⭐ Recordatorio</button>
+                <button class="msg-type-btn" data-type="poema">🌹 Poema</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Título</label>
+              <input type="text" class="dani-input" id="dani-msg-title" placeholder="Ej: Para cuando lo necesites...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tu mensaje para Alison 💕</label>
+              <textarea class="dani-textarea" id="dani-msg-body" placeholder="Escribe desde el corazón..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">¿Programar para una fecha especial? (opcional)</label>
+              <input type="date" class="dani-input" id="dani-msg-date" min="">
+              <p class="form-hint">Si eliges fecha, Alison solo podrá abrirlo ese día 🔒</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Emoji</label>
+              <div class="emoji-picker-row">
+                <button class="emoji-pick active" data-emoji="💕">💕</button>
+                <button class="emoji-pick" data-emoji="🌸">🌸</button>
+                <button class="emoji-pick" data-emoji="🥰">🥰</button>
+                <button class="emoji-pick" data-emoji="🌹">🌹</button>
+                <button class="emoji-pick" data-emoji="✨">✨</button>
+                <button class="emoji-pick" data-emoji="💫">💫</button>
+                <button class="emoji-pick" data-emoji="🎁">🎁</button>
+                <button class="emoji-pick" data-emoji="🌙">🌙</button>
+              </div>
+            </div>
+            <button class="btn-primary btn-dani-send" id="dani-send-btn">💌 Enviar al buzón de Alison</button>
+          </div>
+        </div>
       </div>
-      <!-- Lista de respuestas enviadas -->
-      <div style="margin-top:24px">
-        <h3 class="card-title" style="font-size:15px;margin-bottom:12px;opacity:0.7">Respuestas enviadas</h3>
-        <div id="alison-replies-list"></div>
+
+      <!-- Respuestas de Alison a Dani -->
+      <div class="dani-sub-panel" id="dsubpanel-alison-replies">
+        <div class="card">
+          <h2 class="card-title">Respuestas de Alison 🌸</h2>
+          <p class="card-sub">Cuando Alison te responde una carta, aparece aquí 💕</p>
+          <div id="alison-replies-list"></div>
+        </div>
       </div>
-    </div>
+
+    </div><!-- /dani-write-form -->
   </div>
 
 </section>
@@ -665,7 +775,7 @@ Este mensaje es tuyo. Solo tú podrás leerlo cuando llegue el momento ✨" styl
   </div>
 </div>
 
-<!-- MODAL: Leer mensaje de Dani -->
+<!-- MODAL: Leer carta de Dani -->
 <div class="modal-overlay" id="buzzon-modal" style="display:none">
   <div class="modal-card buzzon-modal-card">
     <button class="modal-close" id="buzzon-modal-close">✕</button>
@@ -686,6 +796,22 @@ Este mensaje es tuyo. Solo tú podrás leerlo cuando llegue el momento ✨" styl
       <div class="letter-reactions-bar" id="letter-reactions-bar"></div>
       <div class="letter-footer">
         <p class="letter-sign">Con todo mi amor, <em>Dani</em> 🌹</p>
+      </div>
+      <!-- Respuesta de Alison inline -->
+      <div class="letter-reply-section" id="letter-reply-section">
+        <div class="letter-reply-toggle" id="letter-reply-toggle">
+          <span>🌸</span> Responderle a Dani
+        </div>
+        <div class="letter-reply-form" id="letter-reply-form" style="display:none">
+          <input type="text" class="dani-input" id="letter-reply-title" placeholder="Título de tu respuesta...">
+          <textarea class="dani-textarea letter-reply-textarea" id="letter-reply-body" placeholder="Escríbele con amor...&#10;&#10;Cuéntale cómo te hizo sentir su carta 🌸" rows="4"></textarea>
+          <div class="letter-reply-actions">
+            <button class="btn-primary letter-reply-send" id="letter-reply-send-btn">🌸 Enviar respuesta a Dani</button>
+            <button class="btn-secondary letter-reply-cancel" id="letter-reply-cancel-btn">Cancelar</button>
+          </div>
+          <!-- Historial de respuestas previas a esta carta -->
+          <div id="letter-prev-replies"></div>
+        </div>
       </div>
     </div>
   </div>
