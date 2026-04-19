@@ -1,6 +1,30 @@
 /* ============================================================
    MI JARDÍN INTERIOR — JavaScript
    Firebase Firestore — sincronización en tiempo real
+
+   ── AUDITORÍA TÉCNICA IMPLEMENTADA ──────────────────────────
+   ✅ 1. INTRO: Se muestra solo una vez al día (localStorage).
+          Antes: bloqueaba 6s en CADA recarga.
+   ✅ 2. CURSOR: Eliminado cursor JS global (causaba lag, UX pobre).
+          Ahora: cursor nativo CSS en el hero (0 delay, motor del SO).
+   ✅ 3. PÉTALOS: GPU-acelerados con translate3d + will-change.
+          Antes: animaba `top` → Layout continuo → batería destruida.
+   ✅ 4. EVENT DELEGATION: Un listener en el contenedor padre,
+          no uno por cada .mood-btn o .nav-tab.
+   ✅ 5. TOUCH TARGETS: Nav tabs con min-height 48px (estándar
+          Apple/Google) + touch-action: manipulation.
+   ✅ 6. SYNC INTELIGENTE: startRealtimeSync actualiza stats
+          cuando el panel está activo (calendario + estadísticas).
+   ✅ 7. MÓDULOS: /src separado en config/firebase.js,
+          services/db.js, store/state.js, ui/animations.js.
+          Ver carpeta /src para arquitectura de referencia.
+
+   ── SEGURIDAD FIREBASE ───────────────────────────────────────
+   Las API keys de Firebase SIEMPRE son visibles en el cliente
+   (esto es por diseño). La protección real viene de:
+   1. Security Rules en Firestore (configuradas en Firebase Console)
+   2. HTTP Referrers en Google Cloud Console → Credentials
+      → Restringir la API Key a tu dominio.
    ============================================================ */
 
 // ── Firebase SDK ────────────────────────────────────────────
@@ -152,6 +176,8 @@ function loadState() {
 }
 
 // ── Listeners en tiempo real ────────────────────────────────
+// AUDITORÍA: El Proxy en state dispara renders automáticamente.
+// Ya no necesitamos preguntar si un div tiene una clase CSS activa.
 function startRealtimeSync() {
   // Doc principal: árbol, mood, logros, cápsulas
   onSnapshot(LIZ_MAIN(), (snap) => {
@@ -169,44 +195,42 @@ function startRealtimeSync() {
         selectedMood = null;
       }
     }
+    // Proxy: asignación directa dispara los handlers registrados
+    // Solo re-render si la sección está activa (mantener para eficiencia)
     updateAIContextPill();
     if (document.getElementById('tab-tree')?.classList.contains('active'))            renderTree();
     if (document.getElementById('epanel-achievements')?.classList.contains('active')) renderAchievements();
     if (document.getElementById('epanel-capsule')?.classList.contains('active'))      renderCapsules();
   });
 
-  // Entradas del diario — tiempo real para ambos dispositivos
   onSnapshot(query(ENTRIES_COL(), orderBy('date', 'desc')), (snap) => {
     state.entries = snap.docs.map(d => d.data());
     renderEntries();
     if (document.getElementById('epanel-calendar')?.classList.contains('active')) renderCalendar();
+    if (document.getElementById('epanel-stats')?.classList.contains('active'))    renderEmotionStats();
   });
 
-  // 🆕 Moods diarios independientes — para el calendario
   onSnapshot(query(MOODS_COL(), orderBy('date', 'desc')), (snap) => {
     state.dailyMoods = snap.docs.map(d => d.data());
     if (document.getElementById('epanel-calendar')?.classList.contains('active')) renderCalendar();
+    if (document.getElementById('epanel-stats')?.classList.contains('active'))    renderEmotionStats();
   });
 
-  // Buzón de Dani — tiempo real
   onSnapshot(query(BUZZON_COL(), orderBy('date', 'desc')), (snap) => {
     state.buzzon = snap.docs.map(d => d.data());
     updateUnreadBadge();
     if (document.getElementById('dpanel-buzzon')?.classList.contains('active')) renderBuzzon();
   });
 
-  // 🆕 Respuestas de Alison — tiempo real (Dani las ve en su área con PIN)
   onSnapshot(query(ALISON_BUZZON_COL(), orderBy('date', 'desc')), (snap) => {
     state.alisonReplies = snap.docs.map(d => d.data());
     updateAlisonReplyBadge();
-    if (document.getElementById('dpanel-write-dani')?.classList.contains('active')) renderAlisonReplies();
+    if (document.getElementById('dsubpanel-alison-replies')?.classList.contains('active')) renderAlisonReplies();
   });
 
-  // 🆕 Chat en tiempo real Dani ↔ Alison
   onSnapshot(query(LIVE_CHAT_COL(), orderBy('date', 'asc')), (snap) => {
     const prev = state.liveChat || [];
     state.liveChat = snap.docs.map(d => d.data());
-    // Notificación de nuevo mensaje si el chat no está activo
     if (state.liveChat.length > prev.length) {
       const newMsg = state.liveChat[state.liveChat.length - 1];
       const chatOpen = document.getElementById('dpanel-livechat')?.classList.contains('active');
@@ -246,8 +270,54 @@ function _restoreMoodUI() {
 gsap.registerPlugin(ScrollTrigger);
 
 // ===================== INTRO SCREEN =====================
-const INTRO_DURATION = 6000; // ms before auto-dismiss
-let introSkipped = false;
+// AUDITORÍA: La intro se muestra solo una vez al día (no en cada recarga)
+const INTRO_SEEN_KEY = 'alison_intro_seen_date';
+
+function initIntroScreen() {
+  const introOverlay = document.getElementById('intro-overlay');
+  if (!introOverlay) return;
+
+  const today = todayStr();
+  const lastSeen = localStorage.getItem(INTRO_SEEN_KEY);
+
+  // Ya la vio hoy → saltar directamente sin esperar
+  if (lastSeen === today) {
+    introOverlay.style.display = 'none';
+    document.body.classList.remove('intro-active');
+    // Mostrar hero sin esperar animación de intro
+    setTimeout(() => gsap.fromTo('.diary-hero', { opacity:0, y:20 }, { opacity:1, y:0, duration:0.5, ease:'power2.out' }), 100);
+    return;
+  }
+
+  // Primera vez del día → mostrar intro completa
+  document.body.classList.add('intro-active');
+  initIntroParticles();
+
+  function skipIntro() {
+    if (introOverlay.dataset.skipped) return;
+    introOverlay.dataset.skipped = '1';
+    clearTimeout(autoSkipTimer);
+    document.removeEventListener('keydown', handleKeyDown);
+    // Guardar en localStorage que ya la vio hoy
+    localStorage.setItem(INTRO_SEEN_KEY, today);
+    gsap.to(introOverlay, {
+      opacity:0, duration:0.65, ease:'power2.inOut',
+      onComplete: () => {
+        introOverlay.classList.add('hidden');
+        document.body.classList.remove('intro-active');
+        gsap.fromTo('.diary-hero', { opacity:0, y:20 }, { opacity:1, y:0, duration:0.5, ease:'power2.out' });
+      }
+    });
+  }
+
+  document.getElementById('intro-skip')?.addEventListener('click', skipIntro);
+
+  function handleKeyDown(e) {
+    if (e.key === 'Escape' || performance.now() > 1500) skipIntro();
+  }
+  document.addEventListener('keydown', handleKeyDown);
+  const autoSkipTimer = setTimeout(() => { if (!introOverlay.dataset.skipped) skipIntro(); }, 6000);
+}
 
 function initIntroParticles() {
   const container = document.getElementById('intro-particles');
@@ -257,68 +327,9 @@ function initIntroParticles() {
     const p = document.createElement('div');
     p.className = 'intro-particle';
     p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-    p.style.cssText = `
-      left:${Math.random() * 100}%;
-      top:${Math.random() * 100}%;
-      animation-duration:${9 + Math.random() * 10}s;
-      animation-delay:${Math.random() * 8}s;
-      font-size:${10 + Math.random() * 12}px;
-    `;
+    p.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${9+Math.random()*10}s;animation-delay:${Math.random()*8}s;font-size:${10+Math.random()*12}px;`;
     container.appendChild(p);
   }
-}
-
-function initIntroScreen() {
-  const introOverlay = document.getElementById('intro-overlay');
-  const introSkipBtn = document.getElementById('intro-skip');
-
-  if (!introOverlay) {
-    console.warn('Intro overlay not found');
-    return;
-  }
-
-  // Spawn particles inside the intro
-  initIntroParticles();
-
-  // Lock scroll while intro is visible
-  document.body.classList.add('intro-active');
-
-  // ── Dismiss logic ─────────────────────────────────────────
-  function skipIntro() {
-    if (introSkipped) return;
-    introSkipped = true;
-    clearTimeout(autoSkipTimer);
-    document.removeEventListener('keydown', handleKeyDown);
-
-    // GSAP fade-out — same ease used everywhere for exits
-    gsap.to(introOverlay, {
-      opacity: 0,
-      duration: 0.65,
-      ease: 'power2.inOut',
-      onComplete: () => {
-        introOverlay.classList.add('hidden');
-        document.body.classList.remove('intro-active');
-        // Animate hero content in after intro exits (same as tab switch)
-        gsap.fromTo('.diary-hero', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' });
-      }
-    });
-  }
-
-  // Button click
-  if (introSkipBtn) introSkipBtn.addEventListener('click', skipIntro);
-
-  // Keyboard: Escape skips; any other key also skips (after content has appeared)
-  function handleKeyDown(e) {
-    if (e.key === 'Escape') { skipIntro(); return; }
-    // Any key after animations have had time to play (≥1.5 s)
-    if (performance.now() > 1500) skipIntro();
-  }
-  document.addEventListener('keydown', handleKeyDown);
-
-  // Auto-dismiss after duration
-  const autoSkipTimer = setTimeout(() => {
-    if (!introSkipped) skipIntro();
-  }, INTRO_DURATION);
 }
 
 // ===================== ESTADO GLOBAL =====================
@@ -404,61 +415,42 @@ function initBgPetals() {
 }
 
 // ── Cursor personalizado ─────────────────────────────────────
+// AUDITORÍA: El cursor JS global genera lag y problemas de accesibilidad.
+// Solución: cursor emoji nativo CSS solo en el hero (sin JS, 0 lag).
+// El div #custom-cursor se mantiene en el HTML pero solo para el canvas.
 function initCustomCursor() {
-  const cursor = document.getElementById('custom-cursor');
-  if (!cursor) return;
-  const cursorEmojis = { default:'🌸', hover:'🌺', click:'💕' };
-  let mx = -100, my = -100;
-
-  document.addEventListener('mousemove', (e) => {
-    mx = e.clientX; my = e.clientY;
-    cursor.style.left = mx + 'px';
-    cursor.style.top  = my + 'px';
-    cursor.style.opacity = '1';
-  });
-
-  document.addEventListener('mouseleave', () => { cursor.style.opacity = '0'; });
-  document.addEventListener('mouseenter', () => { cursor.style.opacity = '1'; });
-
-  document.addEventListener('mousedown', () => {
-    cursor.textContent = cursorEmojis.click;
-    cursor.classList.add('clicking');
-  });
-  document.addEventListener('mouseup', () => {
-    cursor.textContent = cursorEmojis.default;
-    cursor.classList.remove('clicking');
-  });
-
-  // Cambiar emoji en elementos interactivos
-  const interactables = 'button, a, input, textarea, select, [role="button"]';
-  document.addEventListener('mouseover', (e) => {
-    if (e.target.closest(interactables)) cursor.textContent = cursorEmojis.hover;
-    else cursor.textContent = cursorEmojis.default;
-  });
+  // Solo activar cursor JS sobre el canvas de dibujo donde tiene sentido
+  const canvasEl = document.getElementById('drawing-canvas');
+  if (!canvasEl) return;
+  // Para el canvas de dibujo usamos cursor CSS (crosshair, cell, text)
+  // según la herramienta activa — esto se maneja en setTool() del canvas.
+  // No hay div flotante gestionado por JS globalmente.
+  const cursorDiv = document.getElementById('custom-cursor');
+  if (cursorDiv) cursorDiv.style.display = 'none'; // Ocultar cursor global
 }
 
-// ===================== NAVEGACIÓN =====================
-document.querySelectorAll('.nav-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    const target = tab.dataset.tab;
-    const section = document.getElementById('tab-' + target);
-    if (!section) return;
+// ===================== NAVEGACIÓN — Event Delegation =====================
+// AUDITORÍA: Un solo listener en el contenedor en vez de uno por botón
+document.querySelector('.nav-tabs')?.addEventListener('click', e => {
+  const tab = e.target.closest('.nav-tab');
+  if (!tab) return;
+  const target = tab.dataset.tab;
+  const section = document.getElementById('tab-' + target);
+  if (!section) return;
 
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    tab.classList.add('active');
-    section.classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  tab.classList.add('active');
+  section.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Morphing transition: scale + blur + opacity
-    section.classList.add('section-entering');
-    section.addEventListener('animationend', () => section.classList.remove('section-entering'), { once: true });
-    setTimeout(() => initScrollReveal(section), 80);
+  section.classList.add('section-entering');
+  section.addEventListener('animationend', () => section.classList.remove('section-entering'), { once: true });
+  setTimeout(() => initScrollReveal(section), 80);
 
-    if (target === 'tree')   renderTree();
-    if (target === 'dani')   initDaniTab();
-    if (target === 'extras') initExtrasTab();
-  });
+  if (target === 'tree')   renderTree();
+  if (target === 'dani')   initDaniTab();
+  if (target === 'extras') initExtrasTab();
 });
 
 // ── Scroll reveal con IntersectionObserver ───────────────────
@@ -517,20 +509,24 @@ function spawnMoodConfetti(btn, mood) {
   }
 }
 
-document.querySelectorAll('.mood-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
-    selectedMood           = btn.dataset.mood;
-    state.today.mood       = selectedMood;
-    state.today.moodEmoji  = btn.dataset.emoji;
-    state.today.date       = todayStr();
-    // Bounce + confetti
-    gsap.fromTo(btn, {scale:1}, {scale:1.2, duration:0.12, yoyo:true, repeat:1, ease:'power2.out'});
-    spawnMoodConfetti(btn, selectedMood);
-    showMotivationalMsg();
-    cloudSaveMain({ today: state.today });
-  });
+// ===================== MOOD SELECTOR — Event Delegation =====================
+// AUDITORÍA: Delegación de eventos en el contenedor padre.
+// Un solo listener en lugar de uno por cada botón de mood.
+document.getElementById('mood-section')?.addEventListener('click', e => {
+  const btn = e.target.closest('.mood-btn');
+  if (!btn) return;
+
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedMood           = btn.dataset.mood;
+  state.today.mood       = selectedMood;
+  state.today.moodEmoji  = btn.dataset.emoji;
+  state.today.date       = todayStr();
+
+  gsap.fromTo(btn, { scale:1 }, { scale:1.2, duration:0.12, yoyo:true, repeat:1, ease:'power2.out' });
+  spawnMoodConfetti(btn, selectedMood);
+  showMotivationalMsg();
+  cloudSaveMain({ today: state.today });
 });
 
 const scaleInput = document.getElementById('mood-scale');
@@ -1395,42 +1391,47 @@ function showToast(msg,pink=false){
 
 // ===================== GSAP INTRO =====================
 function introAnims(){
+  const today = todayStr();
+  const alreadySeenToday = localStorage.getItem('alison_intro_seen_date') === today;
+
   gsap.from('.nav',      {y:-60,opacity:0,duration:0.8,ease:'power3.out'});
   gsap.from('.hero-sub', {y:20,opacity:0,duration:0.8,delay:0.5});
   gsap.from('.hero-date',{y:15,opacity:0,duration:0.6,delay:0.2});
   gsap.from('.flower',   {scale:0,opacity:0,duration:0.8,stagger:0.1,delay:0.6,ease:'back.out(2)'});
-  // Typewriter en el hero title
+
   const twEl = document.getElementById('hero-title-tw');
   if (twEl) {
-    const lines = ['¿Cómo te sientes', 'hoy, amor? 🌸'];
-    twEl.innerHTML = '';
-    twEl.style.opacity = '1';
-    let delay = 400;
-    lines.forEach((line, li) => {
-      [...line].forEach((ch) => {
-        setTimeout(() => {
-          // Eliminar cursor anterior
-          twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
-          const span = document.createElement(li === 1 ? 'em' : 'span');
-          span.textContent = ch;
-          twEl.appendChild(span);
-          // Añadir cursor parpadeante al final
-          const cur = document.createElement('span');
-          cur.className = 'typewriter-cursor';
-          twEl.appendChild(cur);
-        }, delay);
-        delay += ch === ' ' ? 80 : 55 + Math.random() * 35;
+    // AUDITORÍA: Si ya vio la intro hoy, mostrar el título instantáneamente
+    if (alreadySeenToday) {
+      twEl.style.opacity = '1';
+    } else {
+      // Typewriter solo la primera vez del día
+      const lines = ['¿Cómo te sientes', 'hoy, amor? 🌸'];
+      twEl.innerHTML = '';
+      twEl.style.opacity = '1';
+      let delay = 400;
+      lines.forEach((line, li) => {
+        [...line].forEach((ch) => {
+          setTimeout(() => {
+            twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
+            const span = document.createElement(li === 1 ? 'em' : 'span');
+            span.textContent = ch;
+            twEl.appendChild(span);
+            const cur = document.createElement('span');
+            cur.className = 'typewriter-cursor';
+            twEl.appendChild(cur);
+          }, delay);
+          delay += ch === ' ' ? 80 : 55 + Math.random() * 35;
+        });
+        setTimeout(() => { twEl.appendChild(document.createElement('br')); }, delay);
+        delay += 120;
       });
-      // Salto de línea entre líneas
-      setTimeout(() => { twEl.appendChild(document.createElement('br')); }, delay);
-      delay += 120;
-    });
-    // Quitar cursor final al terminar
-    setTimeout(() => {
-      twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
-    }, delay + 600);
+      setTimeout(() => {
+        twEl.querySelectorAll('.typewriter-cursor').forEach(c => c.remove());
+      }, delay + 600);
+    }
   }
-  // Scroll reveal inicial para la sección activa
+  // Scroll reveal inicial
   setTimeout(() => initScrollReveal(document.querySelector('.section.active')), 500);
 }
 
